@@ -1,0 +1,36 @@
+#!/bin/bash
+
+# Check if the first argument is -v or --verbose
+verbose=0
+if [[ $1 == "-v" ]] || [[ $1 == "--verbose" ]]; then
+    verbose=1
+    # Shift the positional parameters to the left, effectively removing the first argument
+    shift
+fi
+
+# Define a function for verbose output
+function verbose_output {
+    if [[ $verbose -eq 1 ]]; then
+        echo "$1"
+    fi
+}
+
+# Set CURRENT_PATH to the current working directory
+CURRENT_PATH=$(pwd)
+verbose_output "Set CURRENT_PATH to $CURRENT_PATH"
+
+# Switch to the oe-init-build-env directory
+pushd $CURRENT_PATH/poky/
+verbose_output "Switched to $(pwd)"
+
+# Source the oe-init-build-env script
+source oe-init-build-env
+verbose_output "Sourced the oe-init-build-env script"
+
+# Add the  meta-evm, meta-confidential-compute, meta-secure-core/meta-tpm2, meta-openembedded/meta-python, meta-openembedded/meta-oe layers meta-rust-bin meta-clang to bblayers.conf
+bitbake-layers add-layer ../../meta-confidential-compute
+bitbake-layers add-layer ../../meta-dstack
+
+# Return to the original directory
+popd
+verbose_output "Returned to $(pwd)"
