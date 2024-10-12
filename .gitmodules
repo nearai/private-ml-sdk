@@ -1,3 +1,9 @@
 [submodule "poky"]
 	path = poky
 	url = https://github.com/yoctoproject/poky.git
+[submodule "meta-confidential-compute"]
+	path = meta-confidential-compute
+	url = https://github.com/Phala-Network/meta-confidential-compute.git
+[submodule "meta-virtualization"]
+	path = meta-virtualization
+	url = https://github.com/lgirdk/meta-virtualization
