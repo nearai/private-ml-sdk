@@ -5,9 +5,19 @@ first 'init' program more efficiently. core-image-tiny-initramfs doesn't \
 actually generate an image but rather generates boot and rootfs artifacts \
 that can subsequently be picked up by external image generation tools such as wic."
 
-CVM_DEPS = "busybox-mdev init-ifupdown initscripts base-files base-passwd netbase busybox-udhcpd"
-
-PACKAGE_INSTALL = "ca-certificates sysvinit busybox-udhcpd dropbear ${CVM_DEPS} ${VIRTUAL-RUNTIME_base-utils} ${ROOTFS_BOOTSTRAP_INSTALL}"
+PACKAGE_INSTALL = "busybox-mdev \
+    init-ifupdown \
+    initscripts \
+    base-files \
+    base-passwd \
+    netbase \
+    busybox-udhcpd \
+    ca-certificates \
+    sysvinit \
+    dropbear \
+    docker-moby \
+    ${VIRTUAL-RUNTIME_base-utils} \
+    ${ROOTFS_BOOTSTRAP_INSTALL}"
 
 INITRAMFS_MAXSIZE = "1000000"
 
