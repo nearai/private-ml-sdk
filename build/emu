@@ -1,0 +1,15 @@
+#!/bin/sh
+KERNEL=./tmp/deploy/images/tdx/bzImage
+INITRD=./tmp/deploy/images/tdx/dstack-initramfs-tdx.cpio.gz
+qemu-system-x86_64 \
+    -kernel ${KERNEL} \
+    -initrd ${INITRD} \
+    -accel kvm \
+    -m 2G -smp 4 \
+    -cpu host \
+    -machine q35,kernel_irqchip=split \
+    -nographic \
+    -nodefaults \
+    -serial stdio \
+    -append "console=ttyS0"
+

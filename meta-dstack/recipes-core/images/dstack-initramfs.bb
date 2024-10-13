@@ -13,9 +13,12 @@ PACKAGE_INSTALL = "busybox-mdev \
     netbase \
     busybox-udhcpd \
     ca-certificates \
+    iptables \
     sysvinit \
     dropbear \
-    docker-moby \
+    docker \
+    docker-compose \
+    dstack-prebuilt \
     ${VIRTUAL-RUNTIME_base-utils} \
     ${ROOTFS_BOOTSTRAP_INSTALL}"
 
