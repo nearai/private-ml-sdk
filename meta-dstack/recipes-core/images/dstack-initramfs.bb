@@ -25,7 +25,7 @@ PACKAGE_INSTALL = "busybox-mdev \
 INITRAMFS_MAXSIZE = "1000000"
 
 # Do not pollute the initrd image with rootfs features
-IMAGE_FEATURES = "debug-tweaks read-only-rootfs overlayfs-etc"
+IMAGE_FEATURES = "debug-tweaks read-only-rootfs"
 
 IMAGE_BASENAME = "dstack-initramfs"
 IMAGE_NAME_SUFFIX ?= ""
