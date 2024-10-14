@@ -11,7 +11,7 @@ PACKAGE_INSTALL = "busybox-mdev \
     base-files \
     base-passwd \
     netbase \
-    busybox-udhcpd \
+    busybox-udhcpc \
     ca-certificates \
     iptables \
     sysvinit \
@@ -25,9 +25,9 @@ PACKAGE_INSTALL = "busybox-mdev \
 INITRAMFS_MAXSIZE = "1000000"
 
 # Do not pollute the initrd image with rootfs features
-IMAGE_FEATURES = "debug-tweaks"
+IMAGE_FEATURES = "debug-tweaks read-only-rootfs overlayfs-etc"
 
-export IMAGE_BASENAME = "dstack-initramfs"
+IMAGE_BASENAME = "dstack-initramfs"
 IMAGE_NAME_SUFFIX ?= ""
 IMAGE_LINGUAS = ""
 

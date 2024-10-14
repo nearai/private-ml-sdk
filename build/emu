@@ -10,6 +10,7 @@ qemu-system-x86_64 \
     -machine q35,kernel_irqchip=split \
     -nographic \
     -nodefaults \
+    -device virtio-net-pci,netdev=nic0_td -netdev user,id=nic0_td \
     -serial stdio \
     -append "console=ttyS0"
 

@@ -1,4 +1,4 @@
-FILESEXTRAPATHS:prepend := "${THISDIR}/cfg:"
+FILESEXTRAPATHS:prepend := "${THISDIR}/files:"
 
 SRC_URI += "file://dstack-docker.cfg \
             file://dstack-docker.scc \
