@@ -12,7 +12,6 @@ PACKAGE_INSTALL = "busybox-mdev \
     base-passwd \
     netbase \
     busybox-udhcpc \
-    ca-certificates \
     iptables \
     sysvinit \
     dropbear \
@@ -20,7 +19,8 @@ PACKAGE_INSTALL = "busybox-mdev \
     docker-compose \
     dstack-prebuilt \
     ${VIRTUAL-RUNTIME_base-utils} \
-    ${ROOTFS_BOOTSTRAP_INSTALL}"
+    ${ROOTFS_BOOTSTRAP_INSTALL} \
+    dstack-guest"
 
 INITRAMFS_MAXSIZE = "1000000"
 
