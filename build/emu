@@ -12,5 +12,6 @@ qemu-system-x86_64 \
     -nodefaults \
     -device virtio-net-pci,netdev=nic0_td -netdev user,id=nic0_td \
     -serial stdio \
+    -virtfs local,path=./mock/shared,mount_tag=host-shared,readonly=off,security_model=mapped,id=virtfs0 \
     -append "console=ttyS0"
 
