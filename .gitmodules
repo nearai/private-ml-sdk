@@ -13,3 +13,6 @@
 [submodule "meta-rust-bin"]
 	path = meta-rust-bin
 	url = https://github.com/rust-embedded/meta-rust-bin
+[submodule "dstack"]
+	path = dstack
+	url = https://github.com/Phala-Network/dstack

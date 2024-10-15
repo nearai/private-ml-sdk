@@ -20,6 +20,7 @@ PACKAGE_INSTALL = "busybox-mdev \
     dstack-prebuilt \
     ${VIRTUAL-RUNTIME_base-utils} \
     ${ROOTFS_BOOTSTRAP_INSTALL} \
+    kernel-module-tdx-guest \
     dstack-guest"
 
 INITRAMFS_MAXSIZE = "1000000"

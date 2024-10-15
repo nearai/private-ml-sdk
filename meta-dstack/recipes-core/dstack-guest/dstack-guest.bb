@@ -1,15 +1,16 @@
-SUMMARY = "DStack guest binaries"
-DESCRIPTION = "Guest binaries for DStack, a decentralized computing stack"
-HOMEPAGE = "https://github.com/Phala-Network/dstack"
+SUMMARY = "Guest binaries for DStack, a decentralized computing stack"
+DESCRIPTION = "${SUMMARY}"
 LICENSE = "MIT"
 LIC_FILES_CHKSUM = "file://${COREBASE}/meta/COPYING.MIT;md5=3da9cfbcb788c80a0384361b4de20420"
+
 DEPENDS:append = " update-rc.d-native"
 
-SRC_URI = "git://github.com/Phala-Network/dstack;protocol=https;branch=master \
-           file://tappd.init"
-SRCREV = "9d5ad73d61d9c7bcacb5b2d822adbf4f62aa9631"
+REPO_ROOT = "${THISDIR}/../../.."
 
-S = "${WORKDIR}/git"
+SRC_URI = "file://${REPO_ROOT}/dstack \
+           file://tappd.init"
+
+S = "${WORKDIR}/${REPO_ROOT}/dstack"
 
 inherit cargo_bin
 
