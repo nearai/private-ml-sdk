@@ -32,6 +32,8 @@ do_install() {
     install -d ${D}${sysconfdir}/init.d
     install -m 0755 ${WORKDIR}/tappd.init ${D}${sysconfdir}/init.d/tappd
 
+    install -d ${D}$/mnt/host-shared
+
     #
     # Create runlevel links
     #
