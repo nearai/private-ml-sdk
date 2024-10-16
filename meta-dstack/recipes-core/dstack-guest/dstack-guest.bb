@@ -9,7 +9,9 @@ REPO_ROOT = "${THISDIR}/../../.."
 
 SRC_URI = "file://${REPO_ROOT}/dstack \
            file://tappd.init \
-           file://tappd.service"
+           file://tappd.service \
+           file://llmnr.conf \
+           "
 
 S = "${WORKDIR}/${REPO_ROOT}/dstack"
 
@@ -42,8 +44,11 @@ do_install() {
     install -d ${D}$/mnt/host-shared
 
     if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
-        install -d ${D}${systemd_system_unitdir}
+        install -d ${D}${systemd_system_unitdir} \
+                   ${D}${sysconfdir}/systemd/resolved.conf.d
+
         install -m 0644 ${WORKDIR}/tappd.service ${D}${systemd_system_unitdir}
+        install -m 0644 ${WORKDIR}/llmnr.conf ${D}${sysconfdir}/systemd/resolved.conf.d
     else
         install -d ${D}${sysconfdir}/init.d
         install -m 0755 ${WORKDIR}/tappd.init ${D}${sysconfdir}/init.d/tappd.init
