@@ -5,23 +5,21 @@ first 'init' program more efficiently. core-image-tiny-initramfs doesn't \
 actually generate an image but rather generates boot and rootfs artifacts \
 that can subsequently be picked up by external image generation tools such as wic."
 
-PACKAGE_INSTALL = "busybox-mdev \
-    init-ifupdown \
-    initscripts \
+PACKAGE_INSTALL = "\
+    ${VIRTUAL-RUNTIME_base-utils} \
+    ${ROOTFS_BOOTSTRAP_INSTALL} \
     base-files \
     base-passwd \
+    systemd \
     netbase \
-    busybox-udhcpc \
     iptables \
-    sysvinit \
     dropbear \
     docker \
     docker-compose \
     dstack-prebuilt \
-    ${VIRTUAL-RUNTIME_base-utils} \
-    ${ROOTFS_BOOTSTRAP_INSTALL} \
     kernel-module-tdx-guest \
-    dstack-guest"
+    dstack-guest \
+    curl"
 
 INITRAMFS_MAXSIZE = "1000000"
 
@@ -46,3 +44,19 @@ IMAGE_ROOTFS_EXTRA_SPACE = "0"
 COMPATIBLE_HOST = "x86_64.*-linux"
 
 # QB_KERNEL_CMDLINE_APPEND += "debugshell=3 init=/bin/busybox sh init"
+
+# Remove sysvinit related files in a postprocess function
+ROOTFS_POSTPROCESS_COMMAND += "remove_sysvinit_files;"
+
+remove_sysvinit_files() {
+    # Remove /etc/init.d directory and its contents
+    rm -rf ${IMAGE_ROOTFS}${sysconfdir}/init.d
+
+    # Remove /etc/rc*.d directories and their contents
+    for d in ${IMAGE_ROOTFS}${sysconfdir}/rc*.d; do
+        rm -rf $d
+    done
+
+    # Remove other sysvinit specific files
+    rm -f ${IMAGE_ROOTFS}${sysconfdir}/inittab
+}

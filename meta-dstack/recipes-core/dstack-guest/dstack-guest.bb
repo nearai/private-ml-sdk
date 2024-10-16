@@ -3,14 +3,23 @@ DESCRIPTION = "${SUMMARY}"
 LICENSE = "MIT"
 LIC_FILES_CHKSUM = "file://${COREBASE}/meta/COPYING.MIT;md5=3da9cfbcb788c80a0384361b4de20420"
 
-DEPENDS:append = " update-rc.d-native"
+inherit systemd update-rc.d
 
 REPO_ROOT = "${THISDIR}/../../.."
 
 SRC_URI = "file://${REPO_ROOT}/dstack \
-           file://tappd.init"
+           file://tappd.init \
+           file://tappd.service"
 
 S = "${WORKDIR}/${REPO_ROOT}/dstack"
+
+SYSTEMD_PACKAGES = "${@bb.utils.contains('DISTRO_FEATURES','systemd','${PN}','',d)}"
+SYSTEMD_SERVICE:${PN} = "${@bb.utils.contains('DISTRO_FEATURES','systemd','tappd.service','',d)}"
+SYSTEMD_AUTO_ENABLE:${PN} = "enable"
+
+INITSCRIPT_PACKAGES += "${@bb.utils.contains('DISTRO_FEATURES','systemd','','${PN}',d)}"
+INITSCRIPT_NAME:${PN} = "${@bb.utils.contains('DISTRO_FEATURES','systemd','','tappd.init',d)}"
+INITSCRIPT_PARAMS:${PN} = "defaults"
 
 inherit cargo_bin
 
@@ -29,13 +38,14 @@ do_install() {
     install -m 0755 ${CARGO_BINDIR}/iohash ${D}${bindir}
     install -m 0755 ${CARGO_BINDIR}/tdxctl ${D}${bindir}
     install -m 0755 ${CARGO_BINDIR}/tappd ${D}${bindir}
-    install -d ${D}${sysconfdir}/init.d
-    install -m 0755 ${WORKDIR}/tappd.init ${D}${sysconfdir}/init.d/tappd
 
     install -d ${D}$/mnt/host-shared
 
-    #
-    # Create runlevel links
-    #
-    update-rc.d -r ${D} tappd start 90 2 3 4 5 .
+    if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
+        install -d ${D}${systemd_system_unitdir}
+        install -m 0644 ${WORKDIR}/tappd.service ${D}${systemd_system_unitdir}
+    else
+        install -d ${D}${sysconfdir}/init.d
+        install -m 0755 ${WORKDIR}/tappd.init ${D}${sysconfdir}/init.d/tappd.init
+    fi
 }

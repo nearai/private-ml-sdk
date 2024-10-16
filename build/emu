@@ -17,5 +17,6 @@ qemu-system-x86_64 \
     -serial stdio \
     -virtfs local,path=./mock/shared,mount_tag=host-shared,readonly=off,security_model=mapped,id=virtfs0 \
     -drive file=./mock/vda.qcow2,if=virtio,format=qcow2 \
-    -append "console=ttyS0"
+    -append "console=ttyS0 init=/init"
+
 

@@ -8,7 +8,7 @@ KERNEL=./tmp/deploy/images/tdx/bzImage
 INITRD=./tmp/deploy/images/tdx/dstack-initramfs-tdx.cpio.gz
 VDA=${VMDIR}/vda.qcow2
 VDA_SIZE=10G
-CMDLINE="console=ttyS0"
+CMDLINE="console=ttyS0 init=/init"
 CONFIG_DIR=${VMDIR}/shared
 TD=${TD:-1}
 TDVF_FIRMWARE=/usr/share/ovmf/OVMF.fd
