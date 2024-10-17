@@ -18,4 +18,6 @@ ifconfig lo up 127.0.0.1
 ifconfig eth0 up
 udhcpc -i eth0
 
+modprobe tdx-guest
+
 exec /bin/sh

@@ -20,10 +20,11 @@ IMAGE_FEATURES = "debug-tweaks read-only-rootfs"
 IMAGE_BASENAME = "dstack-rootfs"
 IMAGE_NAME_SUFFIX ?= ""
 IMAGE_LINGUAS = ""
+INITRAMFS_MAXSIZE = "1000000"
 
 LICENSE = "MIT"
 
-IMAGE_FSTYPES = "${INITRAMFS_FSTYPES} iso"
+IMAGE_FSTYPES = "cpio"
 
 inherit core-image
 

@@ -27,7 +27,8 @@ COMPATIBLE_HOST = '(x86_64.*|i.86.*|arm.*|aarch64.*|loongarch64.*)-(linux.*|free
 ROOTFS_POSTPROCESS_COMMAND += "postprocess_initramfs;"
 
 postprocess_initramfs() {
-    install -m 0755 ${THISDIR}/files/init ${IMAGE_ROOTFS}/init
+    install -m 0755 ${THISDIR}/initrd-files/init ${IMAGE_ROOTFS}/init
+    install -m 0755 ${THISDIR}/initrd-files/kmfs ${IMAGE_ROOTFS}/bin/kmfs
 
     rm -rf ${IMAGE_ROOTFS}${sysconfdir}/init.d
     rm -rf ${IMAGE_ROOTFS}${systemd_system_unitdir}

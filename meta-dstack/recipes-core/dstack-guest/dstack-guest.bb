@@ -11,6 +11,7 @@ SRC_URI = "file://${REPO_ROOT}/dstack \
            file://tappd.init \
            file://tappd.service \
            file://llmnr.conf \
+           file://tdx-attest.conf \
            "
 
 S = "${WORKDIR}/${REPO_ROOT}/dstack"
@@ -41,7 +42,8 @@ do_install() {
     install -m 0755 ${CARGO_BINDIR}/tdxctl ${D}${bindir}
     install -m 0755 ${CARGO_BINDIR}/tappd ${D}${bindir}
 
-    install -d ${D}$/mnt/host-shared
+    install -d ${D}${sysconfdir}/
+    install -m 0644 ${WORKDIR}/tdx-attest.conf ${D}${sysconfdir}/tdx-attest.conf
 
     if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
         install -d ${D}${systemd_system_unitdir} \

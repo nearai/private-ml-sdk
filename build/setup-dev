@@ -1,7 +1,5 @@
 #!/bin/bash
-pushd .
-
-source poky/oe-init-build-env ./build
+source ../poky/oe-init-build-env .
 
 bitbake-layers add-layer ../meta-confidential-compute
 bitbake-layers add-layer ../meta-openembedded/meta-oe
@@ -11,5 +9,3 @@ bitbake-layers add-layer ../meta-openembedded/meta-filesystems
 bitbake-layers add-layer ../meta-virtualization
 bitbake-layers add-layer ../meta-rust-bin
 bitbake-layers add-layer ../meta-dstack
-
-popd
