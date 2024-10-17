@@ -1,4 +1,6 @@
 #!/bin/sh
+set -e
+
 INITDATA_DIR=/initdata
 KMFS_WORK_DIR=/kmfs
 CFG_DIR=${KMFS_WORK_DIR}/config
@@ -9,7 +11,12 @@ CFG_FILE=${CFG_DIR}/config.json
 APP_COMPOSE_FILE=${CFG_DIR}/docker-compose.yaml
 HOST_SHARED=/mnt/host-shared
 
-kmfs_premount() {
+panic() {
+    echo "$1"
+    exit 1
+}
+
+fde_prepare() {
     local key_phrase rootfs_hash app_id kms_url ca_cert_hash
     local actual_rootfs_hash
 
@@ -126,3 +133,5 @@ kmfs_premount() {
     umount /config || panic "FSINIT: Failed to unmount /config"
     ROOT=/dev/mapper/rootfs_crypt
 }
+
+fde_prepare

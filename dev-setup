@@ -1,6 +1,6 @@
 #!/bin/bash
 pushd .
-source ../poky/oe-init-build-env build
+source poky/oe-init-build-env build
 
 bitbake-layers add-layer ../meta-confidential-compute
 bitbake-layers add-layer ../meta-openembedded/meta-oe

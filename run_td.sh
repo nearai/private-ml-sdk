@@ -4,17 +4,19 @@ VMDIR=${1:-./mock}
 
 PROCESS_NAME=qemu
 
-KERNEL=./tmp/deploy/images/tdx/bzImage
-INITRD=./tmp/deploy/images/tdx/dstack-initramfs-tdx.cpio.gz
+KERNEL=./build/dist/bzImage
+INITRD=./build/dist/initramfs.cpio.gz
+CDROM=./build/dist/rootfs.iso
+OVMF_FIRMWARE=./build/dist/ovmf.fd
+
 VDA=${VMDIR}/vda.qcow2
 VDA_SIZE=10G
 CMDLINE="console=ttyS0 init=/init"
 CONFIG_DIR=${VMDIR}/shared
 TD=${TD:-1}
-TDVF_FIRMWARE=/usr/share/ovmf/OVMF.fd
+TDVF_FIRMWARE=${OVMF_FIRMWARE}
 RO=${RO:-off}
 CID=$(( ( RANDOM % 10000 )  + 3 ))
-CDROM=${ROOTFS_PATH:-${PWD}/dist/rootfs.iso}
 
 ARGS="${ARGS} -kernel ${KERNEL}"
 ARGS="${ARGS} -initrd ${INITRD}"
@@ -40,7 +42,7 @@ fi
 qemu-system-x86_64 \
 		   -accel kvm \
 		   -m 8G -smp 16 \
-		   -name ${PROCESS_NAME},process=${PROCESS_NAME},debug-threads=on \
+		   -name ${PROCESS_NAME},process=${PROCESS_NAME} \
 		   -cpu host \
 		   -machine q35,kernel_irqchip=split${MACHINE_ARGS} \
 		   ${BIOS} \

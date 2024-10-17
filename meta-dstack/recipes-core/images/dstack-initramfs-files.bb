@@ -6,11 +6,14 @@ LIC_FILES_CHKSUM = "file://${COREBASE}/meta/COPYING.MIT;md5=3da9cfbcb788c80a0384
 SRC_URI = "file://init \
     file://kmfs"
 
+FILES:${PN} = "*"
+
 inherit allarch
 
 S = "${WORKDIR}"
 
 do_install() {
+    install -d ${D}/
     install -d ${D}/${bindir}
     install -m 0755 ${S}/init ${D}/init
     install -m 0755 ${S}/kmfs ${D}${bindir}/kmfs
