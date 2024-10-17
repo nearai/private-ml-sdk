@@ -14,6 +14,7 @@ TD=${TD:-1}
 TDVF_FIRMWARE=/usr/share/ovmf/OVMF.fd
 RO=${RO:-off}
 CID=$(( ( RANDOM % 10000 )  + 3 ))
+CDROM=${ROOTFS_PATH:-${PWD}/dist/rootfs.iso}
 
 ARGS="${ARGS} -kernel ${KERNEL}"
 ARGS="${ARGS} -initrd ${INITRD}"
@@ -52,5 +53,6 @@ qemu-system-x86_64 \
 		   -device virtio-net-pci,netdev=nic0_td -netdev user,id=nic0_td \
 		   -drive file=${VDA},if=none,id=virtio-disk0 -device virtio-blk-pci,drive=virtio-disk0 \
 		   -virtfs local,path=${CONFIG_DIR},mount_tag=host-shared,readonly=${RO},security_model=mapped,id=virtfs0 \
+		   -cdrom ${CDROM} \
 		   ${ARGS} \
 		   -append "${CMDLINE}"

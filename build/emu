@@ -1,22 +1,3 @@
 #!/bin/sh
-KERNEL=./tmp/deploy/images/tdx/bzImage
-INITRD=./tmp/deploy/images/tdx/dstack-initramfs-tdx.cpio.gz
-if [ ! -f ./mock/vda.qcow2 ]; then
-    qemu-img create -f qcow2 ./mock/vda.qcow2 10G
-fi
-qemu-system-x86_64 \
-    -kernel ${KERNEL} \
-    -initrd ${INITRD} \
-    -accel kvm \
-    -m 2G -smp 4 \
-    -cpu host \
-    -machine q35,kernel_irqchip=split \
-    -nographic \
-    -nodefaults \
-    -device virtio-net-pci,netdev=nic0_td -netdev user,id=nic0_td \
-    -serial stdio \
-    -virtfs local,path=./mock/shared,mount_tag=host-shared,readonly=off,security_model=mapped,id=virtfs0 \
-    -drive file=./mock/vda.qcow2,if=virtio,format=qcow2 \
-    -append "console=ttyS0 init=/init"
-
-
+THISDIR=$(dirname "$(readlink -f "$0")")
+TD=0 $THISDIR/run.sh

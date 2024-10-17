@@ -1,6 +1,15 @@
-PACKAGE_INSTALL = "${VIRTUAL-RUNTIME_base-utils} udev base-passwd ${ROOTFS_BOOTSTRAP_INSTALL} base-files"
-PACKAGE_INSTALL += "kernel-module-tdx-guest"
-PACKAGE_INSTALL += "dstack-guest curl jq"
+PACKAGE_INSTALL = "\
+    ${VIRTUAL-RUNTIME_base-utils} \
+    udev \
+    base-passwd \
+    ${ROOTFS_BOOTSTRAP_INSTALL} \
+    base-files \
+    kernel-module-tdx-guest \
+    dstack-initramfs-files \
+    dstack-guest \
+    curl \
+    jq \
+"
 
 # Do not pollute the initrd image with rootfs features
 IMAGE_FEATURES = ""
@@ -27,9 +36,6 @@ COMPATIBLE_HOST = '(x86_64.*|i.86.*|arm.*|aarch64.*|loongarch64.*)-(linux.*|free
 ROOTFS_POSTPROCESS_COMMAND += "postprocess_initramfs;"
 
 postprocess_initramfs() {
-    install -m 0755 ${THISDIR}/initrd-files/init ${IMAGE_ROOTFS}/init
-    install -m 0755 ${THISDIR}/initrd-files/kmfs ${IMAGE_ROOTFS}/bin/kmfs
-
     rm -rf ${IMAGE_ROOTFS}${sysconfdir}/init.d
     rm -rf ${IMAGE_ROOTFS}${systemd_system_unitdir}
     rm -rf ${IMAGE_ROOTFS}${bindir}/tappd
