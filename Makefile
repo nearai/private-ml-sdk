@@ -2,11 +2,6 @@ ifeq ($(BBPATH),)
 $(error BBPATH is not set. Run `source dev-setup` first)
 endif
 
-# INITRAMFS_IMAGE=${BUILD_DIR}/tmp/deploy/images/tdx/dstack-initramfs.cpio.gz
-# ROOTFS_IMAGE=${BUILD_DIR}/tmp/deploy/images/tdx/dstack-rootfs-tdx.cpio
-# KERNEL_IMAGE=${BUILD_DIR}/tmp/deploy/images/tdx/bzImage
-# OVMF_FIRMWARE=${BUILD_DIR}/tmp/deploy/images/tdx/ovmf.fd
-
 .PHONY: all dist emu clean
 
 BUILD_DIR ?= build
@@ -18,8 +13,7 @@ IMAGE_FILES = dstack-initramfs.cpio.gz \
 	bzImage \
 	ovmf.fd
 
-ABS_IMAGE_FILES = $(addprefix ${BUILD_IMAGES_DIR}, ${IMAGE_FILES})
-
+ABS_IMAGE_FILES = $(addprefix ${BUILD_IMAGES_DIR}/, ${IMAGE_FILES})
 
 all: dist
 
