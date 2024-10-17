@@ -1,62 +1,35 @@
-# Simple initramfs image artifact generation for tiny images.
-DESCRIPTION = "Tiny image capable of booting a device. The kernel includes \
-the Minimal RAM-based Initial Root Filesystem (initramfs), which finds the \
-first 'init' program more efficiently. core-image-tiny-initramfs doesn't \
-actually generate an image but rather generates boot and rootfs artifacts \
-that can subsequently be picked up by external image generation tools such as wic."
-
-PACKAGE_INSTALL = "\
-    ${VIRTUAL-RUNTIME_base-utils} \
-    ${ROOTFS_BOOTSTRAP_INSTALL} \
-    base-files \
-    base-passwd \
-    systemd \
-    netbase \
-    iptables \
-    dropbear \
-    docker \
-    docker-compose \
-    dstack-prebuilt \
-    kernel-module-tdx-guest \
-    dstack-guest \
-    curl"
-
-INITRAMFS_MAXSIZE = "1000000"
+PACKAGE_INSTALL = "${VIRTUAL-RUNTIME_base-utils} udev base-passwd ${ROOTFS_BOOTSTRAP_INSTALL} base-files"
+PACKAGE_INSTALL += "kernel-module-tdx-guest"
+PACKAGE_INSTALL += "dstack-guest curl jq"
 
 # Do not pollute the initrd image with rootfs features
-IMAGE_FEATURES = "debug-tweaks read-only-rootfs"
+IMAGE_FEATURES = ""
 
-IMAGE_BASENAME = "dstack-initramfs"
+# Don't allow the initramfs to contain a kernel
+PACKAGE_EXCLUDE = "kernel-image-*"
+
 IMAGE_NAME_SUFFIX ?= ""
 IMAGE_LINGUAS = ""
+IMAGE_NAME = "dstack-initramfs"
 
 LICENSE = "MIT"
 
-# don't actually generate an image, just the artifacts needed for one
 IMAGE_FSTYPES = "${INITRAMFS_FSTYPES}"
-
 inherit core-image
 
 IMAGE_ROOTFS_SIZE = "8192"
 IMAGE_ROOTFS_EXTRA_SPACE = "0"
 
-# Use the same restriction as initramfs-live-install
-COMPATIBLE_HOST = "x86_64.*-linux"
-
-# QB_KERNEL_CMDLINE_APPEND += "debugshell=3 init=/bin/busybox sh init"
+# Use the same restriction as initramfs-module-install
+COMPATIBLE_HOST = '(x86_64.*|i.86.*|arm.*|aarch64.*|loongarch64.*)-(linux.*|freebsd.*)'
 
 # Remove sysvinit related files in a postprocess function
-ROOTFS_POSTPROCESS_COMMAND += "remove_sysvinit_files;"
+ROOTFS_POSTPROCESS_COMMAND += "postprocess_initramfs;"
 
-remove_sysvinit_files() {
-    # Remove /etc/init.d directory and its contents
+postprocess_initramfs() {
+    install -m 0755 ${THISDIR}/files/init ${IMAGE_ROOTFS}/init
+
     rm -rf ${IMAGE_ROOTFS}${sysconfdir}/init.d
-
-    # Remove /etc/rc*.d directories and their contents
-    for d in ${IMAGE_ROOTFS}${sysconfdir}/rc*.d; do
-        rm -rf $d
-    done
-
-    # Remove other sysvinit specific files
-    rm -f ${IMAGE_ROOTFS}${sysconfdir}/inittab
+    rm -rf ${IMAGE_ROOTFS}${systemd_system_unitdir}
+    rm -rf ${IMAGE_ROOTFS}${bindir}/tappd
 }

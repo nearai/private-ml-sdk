@@ -1,0 +1,21 @@
+#!/bin/sh
+set -e
+
+PATH=/sbin:/bin:/usr/sbin:/usr/bin
+
+mkdir -p /proc
+mkdir -p /sys
+mount -t proc proc /proc
+mount -t sysfs sysfs /sys
+
+mkdir -p /dev
+mount -t devtmpfs devtmpfs /dev
+
+mkdir -p /dev/pts
+mount -t devpts devpts /dev/pts
+
+ifconfig lo up 127.0.0.1
+ifconfig eth0 up
+udhcpc -i eth0
+
+exec /bin/sh
