@@ -12,10 +12,11 @@ PACKAGE_INSTALL = "\
     dstack-prebuilt \
     kernel-module-tdx-guest \
     dstack-guest \
+    wireguard-tools \
     curl jq"
 
 # Do not pollute the initrd image with rootfs features
-IMAGE_FEATURES = "debug-tweaks read-only-rootfs"
+IMAGE_FEATURES = "debug-tweaks"
 
 IMAGE_BASENAME = "dstack-rootfs"
 IMAGE_NAME_SUFFIX ?= ""

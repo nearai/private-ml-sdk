@@ -2,7 +2,7 @@ ifeq ($(BBPATH),)
 $(error BBPATH is not set. Run `source dev-setup` first)
 endif
 
-.PHONY: all dist emu clean
+.PHONY: all dist emu clean images
 
 BUILD_DIR ?= build
 BUILD_IMAGES_DIR ?= ${BUILD_DIR}/tmp/deploy/images/tdx
@@ -17,16 +17,23 @@ ABS_IMAGE_FILES = $(addprefix ${BUILD_IMAGES_DIR}/, ${IMAGE_FILES})
 
 all: dist
 
-dist: ${ABS_IMAGE_FILES}
+dist: $(ABS_IMAGE_FILES)
 	DIST_DIR=${DIST_DIR} BUILD_DIR=${BUILD_DIR} ./dist.sh
 
-${ABS_IMAGE_FILES}:
+$(ABS_IMAGE_FILES):
+	make images
+
+images:
 	bitbake dstack-initramfs dstack-rootfs ovmf
 
 emu:
 	TD=0 ./run_td.sh
+
 run:
 	./run_td.sh
+
+test:
+	make images dist run
 
 clean:
 	git clean -xdff

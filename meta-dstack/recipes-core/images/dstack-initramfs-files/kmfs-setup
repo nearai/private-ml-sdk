@@ -1,16 +1,6 @@
 #!/bin/sh
 set -e
 
-INITDATA_DIR=/initdata
-KMFS_WORK_DIR=/kmfs
-CFG_DIR=${KMFS_WORK_DIR}/config
-TMP_CA_CERT=${CFG_DIR}/certs/tmp-ca.cert
-TMP_CA_KEY=${CFG_DIR}/certs/tmp-ca.key
-CA_CERT=${CFG_DIR}/certs/ca.cert
-CFG_FILE=${CFG_DIR}/config.json
-APP_COMPOSE_FILE=${CFG_DIR}/docker-compose.yaml
-HOST_SHARED=/mnt/host-shared
-
 panic() {
     echo "$1"
     exit 1
@@ -75,7 +65,7 @@ fde_prepare() {
         panic "FSINIT: Failed to get valid key phrase from KMS"
     fi
 
-    if [ -e /config/initialized ]; then
+    if [ -e ${HOST_SHARED}/initialized ]; then
         echo "[$(date +%H:%M:%S)] FSINIT: Mounting"
         echo "$key_phrase" | cryptsetup luksOpen --type luks2 -d- ${ROOT} rootfs_crypt || panic "FSINIT: Failed to open encrypted rootfs"
         mount /dev/mapper/rootfs_crypt /root || panic "FSINIT: Failed to mount rootfs"
@@ -119,19 +109,19 @@ fde_prepare() {
             panic "FSINIT: Rootfs hash is empty"
         fi
         if [ $actual_rootfs_hash != $rootfs_hash ]; then
+            echo "FSINIT: Rootfs hash mismatch"
+            echo "Expected: $rootfs_hash"
+            echo "Actual:   $actual_rootfs_hash"
             panic "FSINIT: Rootfs hash mismatch"
         fi
 
         cp -rT ${CFG_DIR} /root/tapp || panic "FSINIT: Failed to copy config to /root/tapp"
-        touch /config/initialized || echo "FSINIT: Failed to touch initialized"
+        touch ${HOST_SHARED}/initialized || echo "FSINIT: Failed to touch initialized"
     fi
 
     cp ${KMFS_WORK_DIR}/appkeys.json /root/tapp/appkeys.json || panic "FSINIT: Failed to copy appkeys.json to /root/tapp"
     cp ${CFG_DIR}/config.json /root/tapp/config.json || panic "FSINIT: Failed to copy config.json to /root/tapp"
     echo "FSINIT: Copied config to /root/tapp"
-    umount /root || panic "FSINIT: Failed to unmount /root"
-    umount /config || panic "FSINIT: Failed to unmount /config"
-    ROOT=/dev/mapper/rootfs_crypt
 }
 
 fde_prepare

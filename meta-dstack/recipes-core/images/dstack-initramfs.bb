@@ -4,6 +4,8 @@ PACKAGE_INSTALL = "\
     base-passwd \
     ${ROOTFS_BOOTSTRAP_INSTALL} \
     base-files \
+    cryptsetup \
+    e2fsprogs-mke2fs \
     kernel-module-tdx-guest \
     dstack-initramfs-files \
     dstack-guest \

@@ -1,0 +1,14 @@
+[Unit]
+Description=App Compose Service
+Requires=docker.service
+After=docker.service tboot.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=true
+WorkingDirectory=/tapp
+ExecStart=/usr/bin/env docker compose up -d
+ExecStop=/usr/bin/env docker compose down
+
+[Install]
+WantedBy=multi-user.target

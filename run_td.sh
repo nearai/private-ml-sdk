@@ -4,10 +4,12 @@ VMDIR=${1:-./mock}
 
 PROCESS_NAME=qemu
 
-KERNEL=./build/dist/bzImage
-INITRD=./build/dist/initramfs.cpio.gz
-CDROM=./build/dist/rootfs.iso
-OVMF_FIRMWARE=./build/dist/ovmf.fd
+DIST_DIR=./build/dist
+KERNEL=${DIST_DIR}/bzImage
+INITRD=${DIST_DIR}/initramfs.cpio.gz
+CDROM=${DIST_DIR}/rootfs.iso
+OVMF_FIRMWARE=${DIST_DIR}/ovmf.fd
+ROOTFS_IMG=${DIST_DIR}/rootfs.cpio
 
 VDA=${VMDIR}/vda.qcow2
 VDA_SIZE=10G
@@ -35,6 +37,16 @@ echo CMDLINE=${CMDLINE}
 echo TD=${TD}
 echo TDX_ARGS=${TDX_ARGS}
 echo BIOS=${BIOS}
+
+ROOTFS_HASH=$(sha256sum "${DIST_DIR}/rootfs.cpio" | awk '{print $1}')
+echo ROOTFS_HASH=${ROOTFS_HASH}
+cat <<EOF > ${VMDIR}/shared/config.json
+{
+    "rootfs_hash": "${ROOTFS_HASH}",
+    "kms_url": "https://kms.1022.kvin.wang:9043",
+    "tproxy_url": "https://tproxy.1022.kvin.wang:9010"
+}
+EOF
 
 if [ ! -f ${VDA} ]; then
     qemu-img create -f qcow2 ${VDA} ${VDA_SIZE}
