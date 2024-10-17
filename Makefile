@@ -1,7 +1,14 @@
-.PHONY: build gen-measurements
+.PHONY: all dist emu clean
 
-build:
-	cd srcs/poky/ && bitbake dstack-initramfs
+all:
 
-gen-measurements:
-	echo "Not implemented"
+dist:
+	./buildall.sh
+
+emu:
+	TD=0 ./run_td.sh
+run:
+	./run_td.sh
+
+clean:
+	git clean -xdff

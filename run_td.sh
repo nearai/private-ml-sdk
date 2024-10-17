@@ -34,8 +34,6 @@ echo TD=${TD}
 echo TDX_ARGS=${TDX_ARGS}
 echo BIOS=${BIOS}
 
-sleep 2
-
 if [ ! -f ${VDA} ]; then
     qemu-img create -f qcow2 ${VDA} ${VDA_SIZE}
 fi
