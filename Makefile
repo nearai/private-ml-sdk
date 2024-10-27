@@ -2,7 +2,7 @@ ifeq ($(BBPATH),)
 $(error BBPATH is not set. Run `source dev-setup` first)
 endif
 
-.PHONY: all dist emu clean images
+.PHONY: all dist emu clean clean-dstack images
 
 BUILD_DIR ?= build
 BUILD_IMAGES_DIR ?= ${BUILD_DIR}/tmp/deploy/images/tdx
@@ -38,3 +38,6 @@ test:
 
 clean:
 	git clean -xdff
+
+clean-dstack:
+	bitbake -c cleansstate dstack-guest dstack-rootfs dstack-rootfs-dev
