@@ -6,7 +6,6 @@ PACKAGE_INSTALL = "\
     systemd \
     netbase \
     iptables \
-    dropbear \
     docker \
     docker-compose \
     dstack-prebuilt \
@@ -16,7 +15,7 @@ PACKAGE_INSTALL = "\
     curl jq"
 
 # Do not pollute the initrd image with rootfs features
-IMAGE_FEATURES = "debug-tweaks"
+IMAGE_FEATURES = ""
 
 IMAGE_BASENAME = "dstack-rootfs"
 IMAGE_NAME_SUFFIX ?= ""
