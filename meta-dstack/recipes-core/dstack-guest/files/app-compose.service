@@ -7,8 +7,9 @@ After=docker.service tboot.service
 Type=oneshot
 RemainAfterExit=true
 WorkingDirectory=/tapp
-ExecStart=/usr/bin/env docker compose up -d
+ExecStart=/usr/bin/env docker compose up
 ExecStop=/usr/bin/env docker compose down
+StandardOutput=journal+console
 
 [Install]
 WantedBy=multi-user.target
