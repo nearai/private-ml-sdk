@@ -26,10 +26,10 @@ curl ${TPROXY_URL}/prpc/Tproxy.RegisterCvm?json \
     -d"{\"client_public_key\":\"${CLIENT_PUBLIC_KEY}\"}" \
     -o /tmp/wginfo.json
 
-CLIENT_IP=$(jq -r '.client_ip' /tmp/wginfo.json)
-SERVER_ENDPOINT=$(jq -r '.server_endpoint' /tmp/wginfo.json)
-SERVER_PUBLIC_KEY=$(jq -r '.server_public_key' /tmp/wginfo.json)
-SERVER_IP=$(jq -r '.server_ip' /tmp/wginfo.json)
+CLIENT_IP=$(jq -r '.wg.client_ip' /tmp/wginfo.json)
+SERVER_ENDPOINT=$(jq -r '.wg.server_endpoint' /tmp/wginfo.json)
+SERVER_PUBLIC_KEY=$(jq -r '.wg.server_public_key' /tmp/wginfo.json)
+SERVER_IP=$(jq -r '.wg.server_ip' /tmp/wginfo.json)
 
 rm -f /tmp/wginfo.json
 
