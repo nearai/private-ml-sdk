@@ -31,6 +31,11 @@ SERVER_ENDPOINT=$(jq -r '.wg.server_endpoint' /tmp/wginfo.json)
 SERVER_PUBLIC_KEY=$(jq -r '.wg.server_public_key' /tmp/wginfo.json)
 SERVER_IP=$(jq -r '.wg.server_ip' /tmp/wginfo.json)
 
+echo "WG CLIENT_IP: ${CLIENT_IP}"
+echo "WG SERVER_ENDPOINT: ${SERVER_ENDPOINT}"
+echo "WG SERVER_PUBLIC_KEY: ${SERVER_PUBLIC_KEY}"
+echo "WG SERVER_IP: ${SERVER_IP}"
+
 rm -f /tmp/wginfo.json
 
 mkdir -p /etc/wireguard
