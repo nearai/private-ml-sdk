@@ -1,6 +1,10 @@
 """
 This script calculates the RTMR3 hash from the given docker-compose.yml file and KMS CA certificate.
 
+Usage:
+    python calc_rtmr3.py by-file --compose <docker-compose-file> --ca-cert <ca-cert-file>
+    python calc_rtmr3.py by-vm --images-dir <images-dir> --vm-dir <vm-dir>
+
 Log from a CVM:
 ```
 FSINIT: Extending rootfs hash to RTMR, hash=bf06bf167df2d81dd54095e8a540e802dc634a31a96e1a448a20201a63d0bd21
@@ -26,6 +30,10 @@ ParsedReport {
 """
 
 import hashlib
+import argparse
+import json
+from pathlib import Path
+
 
 INIT_MR= "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
 
@@ -54,8 +62,29 @@ def calc_rtmr3(rootfs_hash: str, app_id: str, ca_cert_hash: str):
 
 
 if __name__ == "__main__":
-    rootfs_hash = "bf06bf167df2d81dd54095e8a540e802dc634a31a96e1a448a20201a63d0bd21"
-    app_id = hashlib.sha256(open("samples/docker-compose.yaml", "rb").read()).hexdigest()
-    ca_cert_hash = hashlib.sha256(open("samples/kms-ca.cert", "rb").read()).hexdigest()
-    rtmr3 = calc_rtmr3(rootfs_hash, app_id, ca_cert_hash)
-    print(rtmr3)
+    parser = argparse.ArgumentParser(description="Calculate the RTMR3 hash from the given docker-compose.yml file and KMS CA certificate.")
+    parser.add_argument("mode", choices=["by-file", "by-vm"])
+    parser.add_argument("--rootfs-cpio", help="The rootfs.cpio file to use.")
+    parser.add_argument("--compose", help="The docker-compose.yml file to use.")
+    parser.add_argument("--ca-cert", help="The KMS CA certificate to use.")
+    parser.add_argument("--images-dir", type=Path, help="The directory containing the VM images to use.")
+    parser.add_argument("--vm-dir", type=Path, help="The directory of a deployed VM.")
+    args = parser.parse_args()
+
+    if args.mode == "by-file":
+        rootfs_hash = hashlib.sha256(open(args.rootfs_cpio, "rb").read()).hexdigest()
+        app_id = hashlib.sha256(open(args.compose, "rb").read()).hexdigest()
+        ca_cert_hash = hashlib.sha256(open(args.ca_cert, "rb").read()).hexdigest()
+        rtmr3 = calc_rtmr3(rootfs_hash, app_id, ca_cert_hash)
+        print(rtmr3)
+    elif args.mode == "by-vm":
+        vm_config = json.load(open(args.vm_dir / "config.json", "r"))
+        image_dir = args.images_dir / vm_config["image"]
+        image_metadata = json.load(open(image_dir / "metadata.json", "r"))
+        rootfs_hash = image_metadata["rootfs_hash"]
+        compose_file = args.vm_dir / "shared" / "docker-compose.yaml"
+        ca_cert_file = args.vm_dir / "shared" / "certs" / "ca.cert"
+        app_id = hashlib.sha256(open(compose_file, "rb").read()).hexdigest()
+        ca_cert_hash = hashlib.sha256(open(ca_cert_file, "rb").read()).hexdigest()
+        rtmr3 = calc_rtmr3(rootfs_hash, app_id, ca_cert_hash)
+        print(rtmr3)
