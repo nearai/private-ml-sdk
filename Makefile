@@ -25,7 +25,7 @@ $(ABS_IMAGE_FILES):
 	make images
 
 images:
-	bitbake dstack-initramfs dstack-rootfs dstack-rootfs-dev ovmf
+	bitbake dstack-initramfs dstack-rootfs dstack-rootfs-dev dstack-ovmf
 
 emu:
 	TD=0 ./run_td.sh
