@@ -1,4 +1,4 @@
-From 262824639dd7726b74a5fbb8e2f2e8768ac95190 Mon Sep 17 00:00:00 2001
+From 4e0965b45c21d3263996a4e3218f7b542313010a Mon Sep 17 00:00:00 2001
 From: Kevin Wang <wy721@qq.com>
 Date: Sun, 3 Nov 2024 13:04:05 +0000
 Subject: [PATCH] Patch for dstack yocto
@@ -10,8 +10,9 @@ Subject: [PATCH] Patch for dstack yocto
  .../Source/Python/AutoGen/BuildEngine.py      |  3 +++
  BaseTools/Source/Python/AutoGen/GenMake.py    | 24 +++++++++----------
  .../Source/Python/AutoGen/ModuleAutoGen.py    |  5 +++-
+ OvmfPkg/Sec/SecMain.c                         |  1 +
  OvmfPkg/build.sh                              |  2 +-
- 7 files changed, 41 insertions(+), 34 deletions(-)
+ 8 files changed, 42 insertions(+), 34 deletions(-)
 
 diff --git a/BaseTools/Conf/tools_def.template b/BaseTools/Conf/tools_def.template
 index 0f110fbb4a..35205db748 100755
@@ -279,6 +280,18 @@ index 65a2176ca9..318b9611ce 100755
  
          # Ignore generating makefile when it is a binary module
          if self.IsBinaryModule:
+diff --git a/OvmfPkg/Sec/SecMain.c b/OvmfPkg/Sec/SecMain.c
+index d13a948509..2a44c4ed24 100644
+--- a/OvmfPkg/Sec/SecMain.c
++++ b/OvmfPkg/Sec/SecMain.c
+@@ -885,6 +885,7 @@ SecCoreStartupWithStack (
+     InitializeCpuExceptionHandlers (NULL);
+   }
+ 
++  void ProcessLibraryConstructorList (void);
+   ProcessLibraryConstructorList ();
+ 
+   if (!SevEsIsEnabled ()) {
 diff --git a/OvmfPkg/build.sh b/OvmfPkg/build.sh
 index 279f0d099a..285f061bf4 100755
 --- a/OvmfPkg/build.sh

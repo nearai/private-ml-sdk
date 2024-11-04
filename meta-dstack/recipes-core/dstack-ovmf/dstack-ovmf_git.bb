@@ -23,7 +23,7 @@ SRC_URI = "gitsm://github.com/tianocore/edk2.git;branch=master;protocol=https \
            file://0001-Patch-for-dstack-yocto.patch \
            "
 
-PV = "edk2-3a3b12cbdae"
+PV = "edk2-3a3b12cb"
 SRCREV = "3a3b12cbdae2e89b0e365eb01c378891d0d9037c"
 UPSTREAM_CHECK_GITTAGREGEX = "(?P<pver>edk2-stable.*)"
 
