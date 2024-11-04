@@ -82,7 +82,7 @@ if __name__ == "__main__":
         image_dir = args.images_dir / vm_config["image"]
         image_metadata = json.load(open(image_dir / "metadata.json", "r"))
         rootfs_hash = image_metadata["rootfs_hash"]
-        compose_file = args.vm_dir / "shared" / "docker-compose.yaml"
+        compose_file = args.vm_dir / "shared" / "app-compose.json"
         ca_cert_file = args.vm_dir / "shared" / "certs" / "ca.cert"
         app_id = hashlib.sha256(open(compose_file, "rb").read()).hexdigest()
         ca_cert_hash = hashlib.sha256(open(ca_cert_file, "rb").read()).hexdigest()

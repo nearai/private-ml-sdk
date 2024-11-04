@@ -9,7 +9,7 @@ TMP_CA_CERT=${CFG_DIR}/certs/tmp-ca.cert
 TMP_CA_KEY=${CFG_DIR}/certs/tmp-ca.key
 CA_CERT=${CFG_DIR}/certs/ca.cert
 CFG_FILE=${CFG_DIR}/config.json
-APP_COMPOSE_FILE=${CFG_DIR}/docker-compose.yaml
+APP_COMPOSE_FILE=${CFG_DIR}/app-compose.json
 HOST_SHARED=/mnt/host-shared
 
 # Parse kernel cmdline into vars
