@@ -20,7 +20,11 @@ PACKAGECONFIG[tpm] = "-D TPM_ENABLE=TRUE,-D TPM_ENABLE=FALSE,,"
 BUILD_CFLAGS += "-Wno-error=stringop-overflow"
 
 SRC_URI = "gitsm://github.com/tianocore/edk2.git;branch=master;protocol=https \
-           file://0001-Patch-for-dstack-yocto.patch \
+           file://0001-Update-path-to-native-BaseTools.patch \
+           file://0002-BaseTools-makefile-adjust-to-build-in-under-bitbake.patch \
+           file://0003-Debug-prefix-map.patch \
+           file://0004-Reproduciable.patch \
+           file://0005-Declare-ProcessLibraryConstructorList.patch \
            "
 
 PV = "edk2-3a3b12cb"
