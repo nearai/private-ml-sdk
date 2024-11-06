@@ -15,7 +15,8 @@ prepare_docker_compose() {
 
 setup_tproxy_net() {
     local FEATURES=$(jq -r '.features[]' $APP_COMPOSE_FILE)
-    if echo "$FEATURES" | grep -q "tproxy-net"; then
+    if ! echo "$FEATURES" | grep -q "tproxy-net"; then
+        echo "tproxy is not enabled"
         return
     fi
 
