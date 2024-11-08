@@ -3,7 +3,7 @@
 	url = https://github.com/yoctoproject/poky.git
 [submodule "meta-confidential-compute"]
 	path = meta-confidential-compute
-	url = https://github.com/Phala-Network/meta-confidential-compute.git
+	url = https://github.com/Dstack-TEE/meta-confidential-compute.git
 [submodule "meta-virtualization"]
 	path = meta-virtualization
 	url = https://github.com/lgirdk/meta-virtualization
@@ -15,4 +15,4 @@
 	url = https://github.com/rust-embedded/meta-rust-bin
 [submodule "dstack"]
 	path = dstack
-	url = https://github.com/Phala-Network/dstack
+	url = https://github.com/Dstack-TEE/dstack

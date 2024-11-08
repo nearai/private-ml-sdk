@@ -5,7 +5,7 @@ This project implements Yocto layer and the overall build scripts for DStack Bas
 ## Build
 
 ```bash
-git clone https://github.com/Phala-Network/meta-dstack.git --recursive
+git clone https://github.com/Dstack-TEE/meta-dstack.git --recursive
 cd meta-dstack
 source dev-setup
 
