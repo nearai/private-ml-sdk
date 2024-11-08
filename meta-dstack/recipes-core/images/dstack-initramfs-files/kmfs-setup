@@ -15,9 +15,8 @@ fde_prepare() {
     mount -t 9p -o trans=virtio,version=9p2000.L host-shared ${HOST_SHARED} || panic "FSINIT: Failed to mount host-shared"
 
     mkdir -p ${CFG_DIR} || panic "FSINIT: Failed to create ${CFG_DIR} directory"
-    cp -r ${HOST_SHARED}/* ${CFG_DIR}/ || panic "FSINIT: Failed to copy config files to ${CFG_DIR}"
+    cp -r ${HOST_SHARED}/* ${HOST_SHARED}/.* ${CFG_DIR}/ || panic "FSINIT: Failed to copy config files to ${CFG_DIR}"
 
-    # Calculate rootfs and app ids and extend them to RTMR
     if [ ! -f "${CFG_FILE}" ]; then
         panic "FSINIT: Config file ${CFG_FILE} does not exist"
     fi
@@ -30,12 +29,15 @@ fde_prepare() {
     kms_url=$(jq -r .kms_url ${CFG_FILE})
     ca_cert_hash=$(iohash sha256 -o! -t- -i ${CA_CERT})
     upgraded_app_id=$(iohash sha256 -o! -t- -i ${APP_COMPOSE_FILE})
-    if [ -f "${HOST_SHARED}/.app_id" ]; then
-        app_id=$(cat ${HOST_SHARED}/.app_id)
+    if [ -f "${CFG_DIR}/.bootstraped" ]; then
+        app_id=$(jq -r .app_id ${CFG_DIR}/.instance_info)
+        instance_id=$(jq -r .instance_id ${CFG_DIR}/.instance_info)
     else
         app_id=${upgraded_app_id}
+        instance_id=$(tdxctl rand -x -n 20)
     fi
 
+    # Calculate rootfs and app ids and extend them to RTMR
     echo "FSINIT: Extending rootfs hash to RTMR, hash=${rootfs_hash}"
     tdxctl extend -i 3 --digest ${rootfs_hash} --associated-data "rootfs-hash" || panic "FSINIT: Failed to extend rootfs to RTMR"
     echo "FSINIT: Extending app id to RTMR, app_id=${app_id}"
@@ -44,6 +46,8 @@ fde_prepare() {
     tdxctl extend -i 3 --digest ${upgraded_app_id} --associated-data "upgraded-app-id" || panic "FSINIT: Failed to extend upgraded app id to RTMR"
     echo "FSINIT: Extending ca cert hash to RTMR, ca_cert_hash=${ca_cert_hash}"
     tdxctl extend -i 3 --digest ${ca_cert_hash} --associated-data "ca-cert-hash" || panic "FSINIT: Failed to extend ca cert hash to RTMR"
+    echo "FSINIT: Extending instance id to RTMR, instance_id=${instance_id}"
+    tdxctl extend -i 3 --digest ${instance_id} --associated-data "instance-id" || panic "FSINIT: Failed to extend instance id to RTMR"
 
     # Show the RTMR
     tdxctl show
@@ -72,7 +76,7 @@ fde_prepare() {
         panic "FSINIT: Failed to get valid key phrase from KMS"
     fi
 
-    if [ -e ${HOST_SHARED}/.bootstraped ]; then
+    if [ -e ${CFG_DIR}/.bootstraped ]; then
         echo "[$(date +%H:%M:%S)] FSINIT: Mounting"
         echo "$key_phrase" | cryptsetup luksOpen --type luks2 -d- ${ROOT} rootfs_crypt || panic "FSINIT: Failed to open encrypted rootfs"
         mount /dev/mapper/rootfs_crypt /root || panic "FSINIT: Failed to mount rootfs"
@@ -129,9 +133,14 @@ fde_prepare() {
         fi
 
         cp -rT ${CFG_DIR} /root/tapp || panic "FSINIT: Failed to copy config to /root/tapp"
-        touch /root/.bootstraped || echo "FSINIT: Failed to touch bootstraped"
-        touch ${HOST_SHARED}/.bootstraped || echo "FSINIT: Failed to touch bootstraped"
-        echo ${app_id} > ${HOST_SHARED}/.app_id || echo "FSINIT: Failed to set app id"
+        cat <<EOF | jq . >${HOST_SHARED}/.instance_info || panic "FSINIT: failed to write instance_info"
+        {
+            "app_id": "$app_id",
+            "instance_id": "$instance_id"
+        }
+EOF
+        touch /root/.bootstraped || panic "FSINIT: Failed to touch bootstraped"
+        touch ${HOST_SHARED}/.bootstraped || panic "FSINIT: Failed to touch bootstraped"
     fi
 
     cp ${KMFS_WORK_DIR}/appkeys.json /root/tapp/appkeys.json || panic "FSINIT: Failed to copy appkeys.json to /root/tapp"
