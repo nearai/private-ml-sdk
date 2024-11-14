@@ -1,0 +1,10 @@
+node_modules/
+.env
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+.DS_Store?
+target/
+**/*.rs.bk
