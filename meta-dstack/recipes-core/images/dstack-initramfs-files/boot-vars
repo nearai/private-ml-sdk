@@ -1,17 +1,3 @@
-
-ROOT=/dev/vda
-ROOTINTEGRITY=
-INITIMG=/dev/sr0
-INITDATA_DIR=/initdata
-KMFS_WORK_DIR=/kmfs
-CFG_DIR=${KMFS_WORK_DIR}/config
-TMP_CA_CERT=${CFG_DIR}/certs/tmp-ca.cert
-TMP_CA_KEY=${CFG_DIR}/certs/tmp-ca.key
-CA_CERT=${CFG_DIR}/certs/ca.cert
-CFG_FILE=${CFG_DIR}/config.json
-APP_COMPOSE_FILE=${CFG_DIR}/app-compose.json
-HOST_SHARED=/mnt/host-shared
-
 # Parse kernel cmdline into vars
 for p in `cat /proc/cmdline`; do
 	if [ -n "$quoted" ]; then

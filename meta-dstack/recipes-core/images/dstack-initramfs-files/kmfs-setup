@@ -1,151 +1,39 @@
-#!/bin/sh
-set -e
+
+if [ x"${kargs_dstack_integrity}" = x"1" ]; then
+    ROOTINTEGRITY="--rootfs-integrity"
+fi
+
+ROOTFS_CD=/dev/sr0
+ROOTFS_CD_MNT=/mnt/rootfs-cdrom
+ROOTFS_HD=/dev/vda
+ROOTFS_DIR=/root
+
+KMFS_WORK_DIR=/kmfs
+SHARED_COPY=${KMFS_WORK_DIR}/config
+HOST_SHARED=/mnt/host-shared
 
 panic() {
     echo "$1"
     exit 1
 }
 
-fde_prepare() {
-    local key_phrase rootfs_hash app_id kms_url ca_cert_hash
-    local actual_rootfs_hash
+echo "Setting up FDE"
+echo "FDE setup arguments:"
+echo "  HOST_SHARED=$HOST_SHARED"
+echo "  SHARED_COPY=$SHARED_COPY" 
+echo "  KMFS_WORK_DIR=$KMFS_WORK_DIR"
+echo "  ROOTFS_DIR=$ROOTFS_DIR"
+echo "  ROOTFS_HD=$ROOTFS_HD"
+echo "  ROOTFS_CD=$ROOTFS_CD"
+echo "  ROOTFS_CD_MNT=$ROOTFS_CD_MNT"
+echo "  ROOTINTEGRITY=$ROOTINTEGRITY"
 
-    # Mount host-shared
-    mkdir -p ${HOST_SHARED} || panic "FSINIT: Failed to create ${HOST_SHARED} directory"
-    mount -t 9p -o trans=virtio,version=9p2000.L host-shared ${HOST_SHARED} || panic "FSINIT: Failed to mount host-shared"
-
-    mkdir -p ${CFG_DIR} || panic "FSINIT: Failed to create ${CFG_DIR} directory"
-    cp -r ${HOST_SHARED}/* ${HOST_SHARED}/.* ${CFG_DIR}/ || panic "FSINIT: Failed to copy config files to ${CFG_DIR}"
-
-    if [ ! -f "${CFG_FILE}" ]; then
-        panic "FSINIT: Config file ${CFG_FILE} does not exist"
-    fi
-
-    if [ ! -f "${APP_COMPOSE_FILE}" ]; then
-        panic "FSINIT: Docker compose file ${APP_COMPOSE_FILE} does not exist"
-    fi
-
-    rootfs_hash=$(jq -r .rootfs_hash ${CFG_FILE})
-    kms_url=$(jq -r .kms_url ${CFG_FILE})
-    ca_cert_hash=$(iohash sha256 -o! -t- -i ${CA_CERT})
-    upgraded_app_id=$(iohash sha256 -o! -t- -i ${APP_COMPOSE_FILE})
-    if [ -f "${CFG_DIR}/.bootstraped" ]; then
-        app_id=$(jq -r .app_id ${CFG_DIR}/.instance_info)
-        instance_id=$(jq -r .instance_id ${CFG_DIR}/.instance_info)
-    else
-        app_id=${upgraded_app_id}
-        instance_id=$(tdxctl rand -x -n 20)
-    fi
-
-    # Calculate rootfs and app ids and extend them to RTMR
-    echo "FSINIT: Extending rootfs hash to RTMR, hash=${rootfs_hash}"
-    tdxctl extend -i 3 --digest ${rootfs_hash} --associated-data "rootfs-hash" || panic "FSINIT: Failed to extend rootfs to RTMR"
-    echo "FSINIT: Extending app id to RTMR, app_id=${app_id}"
-    tdxctl extend -i 3 --digest ${app_id} --associated-data "app-id" || panic "FSINIT: Failed to extend app id to RTMR"
-    echo "FSINIT: Extending upgraded app id to RTMR, upgraded_app_id=${upgraded_app_id}"
-    tdxctl extend -i 3 --digest ${upgraded_app_id} --associated-data "upgraded-app-id" || panic "FSINIT: Failed to extend upgraded app id to RTMR"
-    echo "FSINIT: Extending ca cert hash to RTMR, ca_cert_hash=${ca_cert_hash}"
-    tdxctl extend -i 3 --digest ${ca_cert_hash} --associated-data "ca-cert-hash" || panic "FSINIT: Failed to extend ca cert hash to RTMR"
-    echo "FSINIT: Extending instance id to RTMR, instance_id=${instance_id}"
-    tdxctl extend -i 3 --digest ${instance_id} --associated-data "instance-id" || panic "FSINIT: Failed to extend instance id to RTMR"
-
-    # Show the RTMR
-    tdxctl show
-
-    # Generate temp cert for RA-TLS
-    echo "FSINIT: Generating RA-TLS cert"
-    mkdir -p ${KMFS_WORK_DIR}/certs
-    tdxctl gen-ra-cert \
-        -c ${KMFS_WORK_DIR}/certs/cert.pem \
-        -k ${KMFS_WORK_DIR}/certs/key.pem \
-        --ca-cert ${TMP_CA_CERT} \
-        --ca-key ${TMP_CA_KEY} || panic "FSINIT: Failed to generate RA-TLS cert"
-
-    # Request app keys from KMS
-    echo "FSINIT: Requesting app keys from KMS (${kms_url})"
-    curl --cacert ${CA_CERT} \
-        --cert ${KMFS_WORK_DIR}/certs/cert.pem \
-        --key ${KMFS_WORK_DIR}/certs/key.pem \
-        -o ${KMFS_WORK_DIR}/appkeys.json \
-        ${kms_url}/prpc/KMS.GetAppKey \
-        || panic "FSINIT: Failed to request app keys"
-
-    key_phrase=$(jq -r .disk_crypt_key ${KMFS_WORK_DIR}/appkeys.json)
-    # Check if key_phrase is empty, null, or not set
-    if [ -z "$key_phrase" ] || [ "$key_phrase" = "null" ]; then
-        panic "FSINIT: Failed to get valid key phrase from KMS"
-    fi
-
-    if [ -e ${CFG_DIR}/.bootstraped ]; then
-        echo "[$(date +%H:%M:%S)] FSINIT: Mounting"
-        echo "$key_phrase" | cryptsetup luksOpen --type luks2 -d- ${ROOT} rootfs_crypt || panic "FSINIT: Failed to open encrypted rootfs"
-        mount /dev/mapper/rootfs_crypt /root || panic "FSINIT: Failed to mount rootfs"
-        if [ ! -e /root/.bootstraped ]; then
-            # Check if the rootfs has been properly bootstrapped by looking for the .bootstraped file
-            # This file is created at the end of the initial setup process
-            # If it doesn't exist, the rootfs was not properly initialized
-            panic "FSINIT: Encrypted rootfs is not bootstrapped"
-        fi
-    else
-        # Set up disk encryption and format the disk
-
-        [ -z "${INITIMG}" ] && panic "FSINIT: initimg not set"
-
-        echo "FSINIT: Mounting init image ${INITIMG}"
-        mkdir -p ${INITDATA_DIR} || panic "FSINIT: Failed to create ${INITDATA_DIR}"
-
-        if [ -z "${INITIMGTYPE}" ]; then
-            case "${INITIMG}" in
-                /dev/cdrom*|/dev/sr*)
-                    INITIMGTYPE="-t iso9660"
-                    ;;
-            esac
-        fi
-        mount ${INITIMGTYPE} -o ro ${INITIMG} ${INITDATA_DIR} || panic "FSINIT: Failed to mount init image"
-
-        echo "FSINIT: Initializing"
-        echo "[$(date +%H:%M:%S)] FSINIT: Formatting rootfs"
-        echo "$key_phrase" | cryptsetup luksFormat --type luks2 --cipher aes-xts-plain64 ${ROOTINTEGRITY} --pbkdf pbkdf2 -d- ${ROOT} || panic "FSINIT: Failed to format rootfs"
-        echo "[$(date +%H:%M:%S)] FSINIT: Formatting rootfs done"
-        echo "$key_phrase" | cryptsetup luksOpen --type luks2 -d- ${ROOT} rootfs_crypt || panic "FSINIT: Failed to open encrypted rootfs"
-        mkfs.ext4 -L cloudimg-rootfs /dev/mapper/rootfs_crypt || panic "FSINIT: Failed to create ext4 filesystem"
-        mount /dev/mapper/rootfs_crypt /root || panic "FSINIT: Failed to mount rootfs"
-
-        echo "[$(date +%H:%M:%S)] FSINIT: Extracting rootfs, this may take a while..."
-        extract_rootfs() {
-            iohash sha256 -t /tmp/rootfs.hash | cpio -i
-        }
-        if [ -e ${INITDATA_DIR}/rootfs.cpio ]; then
-            (cd /root && cat ${INITDATA_DIR}/rootfs.cpio | extract_rootfs) || panic "FSINIT: Failed to extract rootfs.cpio"
-        else
-            panic "FSINIT: No rootfs found"
-        fi
-
-        actual_rootfs_hash=$(cat /tmp/rootfs.hash)
-        if [ -z "$actual_rootfs_hash" ]; then
-            panic "FSINIT: Rootfs hash is empty"
-        fi
-        if [ $actual_rootfs_hash != $rootfs_hash ]; then
-            echo "FSINIT: Rootfs hash mismatch"
-            echo "Expected: $rootfs_hash"
-            echo "Actual:   $actual_rootfs_hash"
-            panic "FSINIT: Rootfs hash mismatch"
-        fi
-
-        cp -rT ${CFG_DIR} /root/tapp || panic "FSINIT: Failed to copy config to /root/tapp"
-        cat <<EOF | jq . >${HOST_SHARED}/.instance_info || panic "FSINIT: failed to write instance_info"
-        {
-            "app_id": "$app_id",
-            "instance_id": "$instance_id"
-        }
-EOF
-        touch /root/.bootstraped || panic "FSINIT: Failed to touch bootstraped"
-        touch ${HOST_SHARED}/.bootstraped || panic "FSINIT: Failed to touch bootstraped"
-    fi
-
-    cp ${KMFS_WORK_DIR}/appkeys.json /root/tapp/appkeys.json || panic "FSINIT: Failed to copy appkeys.json to /root/tapp"
-    cp ${CFG_DIR}/config.json /root/tapp/config.json || panic "FSINIT: Failed to copy config.json to /root/tapp"
-    echo "FSINIT: Copied config to /root/tapp"
-}
-
-fde_prepare
+tdxctl setup-fde \
+    --host-shared $HOST_SHARED \
+    --host-shared-copy $SHARED_COPY \
+    --work-dir $KMFS_WORK_DIR \
+    --rootfs-dir $ROOTFS_DIR \
+    --root-hd $ROOTFS_HD \
+    --root-cdrom $ROOTFS_CD \
+    --root-cdrom-mnt $ROOTFS_CD_MNT \
+    $ROOTINTEGRITY || panic "Failed to setup FDE"

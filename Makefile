@@ -41,3 +41,6 @@ clean:
 
 clean-dstack:
 	bitbake -c cleansstate dstack-guest dstack-rootfs dstack-rootfs-dev
+
+clean-initrd:
+	bitbake -c cleansstate dstack-initramfs
