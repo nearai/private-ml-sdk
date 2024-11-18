@@ -7,15 +7,7 @@ inherit systemd update-rc.d
 
 REPO_ROOT = "${THISDIR}/../../.."
 
-SRC_URI = "file://${REPO_ROOT}/dstack \
-           file://tappd.init \
-           file://tappd.service \
-           file://llmnr.conf \
-           file://tdx-attest.conf \
-           file://tboot.sh \
-           file://tboot.service \
-           file://app-compose.service \
-           "
+SRC_URI = "file://${REPO_ROOT}/dstack"
 
 S = "${WORKDIR}/${REPO_ROOT}/dstack"
 
@@ -44,23 +36,23 @@ do_install() {
     install -m 0755 ${CARGO_BINDIR}/iohash ${D}${bindir}
     install -m 0755 ${CARGO_BINDIR}/tdxctl ${D}${bindir}
     install -m 0755 ${CARGO_BINDIR}/tappd ${D}${bindir}
-    install -m 0755 ${WORKDIR}/tboot.sh ${D}${bindir}
+    install -m 0755 ${S}/basefiles/tboot.sh ${D}${bindir}
 
     install -d ${D}${sysconfdir}/
-    install -m 0644 ${WORKDIR}/tdx-attest.conf ${D}${sysconfdir}/tdx-attest.conf
+    install -m 0644 ${S}/basefiles/tdx-attest.conf ${D}${sysconfdir}/tdx-attest.conf
 
     if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
         install -d ${D}${systemd_system_unitdir} \
                    ${D}${sysconfdir}/systemd/resolved.conf.d
 
-        install -m 0644 ${WORKDIR}/tappd.service ${D}${systemd_system_unitdir}
-        install -m 0644 ${WORKDIR}/tboot.service ${D}${systemd_system_unitdir}
-        install -m 0644 ${WORKDIR}/app-compose.service ${D}${systemd_system_unitdir}
+        install -m 0644 ${S}/basefiles/tappd.service ${D}${systemd_system_unitdir}
+        install -m 0644 ${S}/basefiles/tboot.service ${D}${systemd_system_unitdir}
+        install -m 0644 ${S}/basefiles/app-compose.service ${D}${systemd_system_unitdir}
 
-        install -m 0644 ${WORKDIR}/llmnr.conf ${D}${sysconfdir}/systemd/resolved.conf.d
+        install -m 0644 ${S}/basefiles/llmnr.conf ${D}${sysconfdir}/systemd/resolved.conf.d
     else
         install -d ${D}${sysconfdir}/init.d
-        install -m 0755 ${WORKDIR}/tappd.init ${D}${sysconfdir}/init.d/tappd.init
+        install -m 0755 ${S}/basefiles/tappd.init ${D}${sysconfdir}/init.d/tappd.init
         bberror "init scripts for sysvinit is not implemented yet"
     fi
 }

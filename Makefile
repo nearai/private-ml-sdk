@@ -4,7 +4,7 @@ endif
 
 .PHONY: all dist emu clean clean-dstack images
 
-BUILD_DIR ?= build
+BUILD_DIR ?= bb-build
 BUILD_IMAGES_DIR ?= ${BUILD_DIR}/tmp/deploy/images/tdx
 DIST_DIR ?= ${BUILD_DIR}/dist
 
@@ -18,23 +18,14 @@ ABS_IMAGE_FILES = $(addprefix ${BUILD_IMAGES_DIR}/, ${IMAGE_FILES})
 
 all: dist
 
-dist: $(ABS_IMAGE_FILES)
+dist: images
 	DIST_DIR=${DIST_DIR} BUILD_DIR=${BUILD_DIR} ./dist.sh
-
-$(ABS_IMAGE_FILES):
-	make images
 
 images:
 	bitbake dstack-initramfs dstack-rootfs dstack-rootfs-dev dstack-ovmf
 
-emu:
-	TD=0 ./run_td.sh
-
-run:
-	./run_td.sh
-
 test:
-	make images dist run
+	make images dist
 
 clean:
 	git clean -xdff
