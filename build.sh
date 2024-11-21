@@ -84,7 +84,7 @@ if [ -f $CONFIG_FILE ]; then
     fi
     rm -f build-config.sh.tpl
 else
-    mv build-config.sh.tpl build-config.sh
+    mv build-config.sh.tpl $CONFIG_FILE
     echo "Config file $CONFIG_FILE created, please edit it to configure the build"
     exit 1
 fi
@@ -100,6 +100,7 @@ TPROXY_WG_PUBKEY=$(echo $TPROXY_WG_KEY | wg pubkey)
 
 # Step 1: build binaries
 build_host() {
+    echo "Building binaries"
     (cd $DSTACK_DIR && cargo build --release)
     cp $DSTACK_DIR/target/release/{tproxy,kms,teepod,certbot,ct_monitor} .
 }
@@ -117,7 +118,7 @@ make_image_dist() {
 {
     "bios": "ovmf.fd",
     "kernel": "bzImage",
-    "cmdline": "console=ttyS0 init=/init dstack.integrity=0",
+    "cmdline": "console=ttyS0 init=/init dstack.integrity=0 panic=1",
     "initrd": "initramfs.cpio.gz",
     "rootfs": "rootfs.iso",
     "rootfs_hash": "$rootfs_hash"
@@ -131,6 +132,7 @@ EOF
 }
 
 build_guest() {
+    echo "Building guest images"
     if [ -z "$BBPATH" ]; then
         echo 'BBPATH is not set. Run `source dev-setup` in the meta-dstack/ directory'
         pushd $SCRIPT_DIR/
@@ -150,12 +152,14 @@ build_guest() {
 
 # Step 3: make certs
 build_certs() {
+    echo "Building certs"
     make -C $DSTACK_DIR certs DOMAIN=$BASE_DOMAIN TO=$CERTS_DIR
 }
 
 # Step 4: generate config files
 
 build_cfg() {
+    echo "Building config files"
     # kms
     cat <<EOF > kms.toml
 log_level = "info"
@@ -228,6 +232,7 @@ address = "127.0.0.1"
 port = $TEEPOD_RPC_LISTEN_PORT
 image_path = "$IMAGES_DIR"
 run_path = "$RUN_DIR/vm"
+kms_url = "https://localhost:$KMS_RPC_LISTEN_PORT"
 
 [cvm]
 ca_cert = "$CERTS_DIR/root-ca.cert"
@@ -286,6 +291,7 @@ EOF
 }
 
 build_wg() {
+    echo "Setting up wireguard interface"
     # Step 6: setup wireguard interface
     # Check if the WireGuard interface exists
     if ! ip link show $TPROXY_WG_INTERFACE &> /dev/null; then
