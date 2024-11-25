@@ -14,3 +14,7 @@ KERNEL_FEATURES:append = " features/cgroups/cgroups.scc \
                           dstack.scc"
 
 KERNEL_FEATURES:append:tdx = " dstack-tdx.scc"
+
+do_deploy:append() {
+    install -m 0644 ${B}/.config ${DEPLOYDIR}/kernel-config
+}
