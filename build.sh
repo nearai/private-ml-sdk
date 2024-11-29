@@ -109,6 +109,7 @@ build_host() {
 make_image_dist() {
     local img_name=$1
     local rootfs_name=$2
+    local encfs=$3
     local img_dist_dir=$IMAGES_DIR/$img_name
     local rootfs_hash
 
@@ -118,7 +119,7 @@ make_image_dist() {
 {
     "bios": "ovmf.fd",
     "kernel": "bzImage",
-    "cmdline": "console=ttyS0 init=/init dstack.integrity=0 panic=1",
+    "cmdline": "console=ttyS0 init=/init dstack.fde=${encfs} panic=1 systemd.unified_cgroup_hierarchy=0",
     "initrd": "initramfs.cpio.gz",
     "rootfs": "rootfs.iso",
     "rootfs_hash": "$rootfs_hash"
@@ -146,8 +147,8 @@ build_guest() {
     echo "Building $IMAGE_NAME"
     make -C $META_DIR dist DIST_DIR=$IMAGE_TMP_DIR
 
-    make_image_dist $IMAGE_NAME rootfs
-    make_image_dist $IMAGE_NAME-dev rootfs-dev
+    make_image_dist $IMAGE_NAME rootfs 1
+    make_image_dist $IMAGE_NAME-dev rootfs-dev 0
 }
 
 # Step 3: make certs
