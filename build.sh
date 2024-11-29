@@ -23,13 +23,12 @@ cat <<EOF > build-config.sh.tpl
 # cvm point of view
 BASE_DOMAIN=1022.kvin.wang
 
-# kms and tproxy rpc listen port
 TEEPOD_RPC_LISTEN_PORT=9080
 # CIDs allocated to VMs start from this number of type unsigned int32
 TEEPOD_CID_POOL_START=10000
 # CID pool size
 TEEPOD_CID_POOL_SIZE=1000
-# Whether port mapping is enabled
+# Whether port mapping from host to CVM is allowed
 TEEPOD_PORT_MAPPING_ENABLED=false
 
 KMS_RPC_LISTEN_PORT=9043
