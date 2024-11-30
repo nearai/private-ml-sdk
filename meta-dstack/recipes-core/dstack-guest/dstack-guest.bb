@@ -7,9 +7,11 @@ inherit systemd update-rc.d
 
 REPO_ROOT = "${THISDIR}/../../.."
 
-SRC_URI = "file://${REPO_ROOT}/dstack"
+SRC_DIR = "${@oe.utils.conditional('DSTACK_SRC_URI', '', '${REPO_ROOT}/dstack', 'git', d)}"
+SRC_URI = "${@oe.utils.conditional('DSTACK_SRC_URI', '', 'file://${REPO_ROOT}/dstack', '${DSTACK_SRC_URI}', d)}"
+SRCREV = "${DSTACK_SRC_REV}"
 
-S = "${WORKDIR}/${REPO_ROOT}/dstack"
+S = "${WORKDIR}/${SRC_DIR}"
 
 SYSTEMD_PACKAGES = "${@bb.utils.contains('DISTRO_FEATURES','systemd','${PN}','',d)}"
 SYSTEMD_SERVICE:${PN} = "${@bb.utils.contains('DISTRO_FEATURES','systemd','tappd.service tboot.service app-compose.service','',d)}"

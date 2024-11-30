@@ -1,12 +1,12 @@
 PACKAGE_INSTALL = "\
-    ${VIRTUAL-RUNTIME_base-utils} \
+    busybox \
     udev \
     base-passwd \
     ${ROOTFS_BOOTSTRAP_INSTALL} \
     base-files \
     cryptsetup \
     e2fsprogs-mke2fs \
-    kernel-module-tdx-guest \
+    tdx-guest-ko \
     dstack-initramfs-files \
     dstack-guest \
     curl \
