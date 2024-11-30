@@ -82,20 +82,18 @@ if [ -f $CONFIG_FILE ]; then
         exit 1
     fi
     rm -f build-config.sh.tpl
+
+    if [ -z "$TPROXY_SERVE_PORT" ]; then
+        TPROXY_SERVE_PORT=${TPROXY_LISTEN_PORT1}
+    fi
+    TAPPD_PORT=8090
 else
-    mv build-config.sh.tpl $CONFIG_FILE
-    echo "Config file $CONFIG_FILE created, please edit it to configure the build"
-    exit 1
+    if [ x"$ACTION" != x"guest" ]; then
+        mv build-config.sh.tpl $CONFIG_FILE
+        echo "Config file $CONFIG_FILE created, please edit it to configure the build"
+        exit 1
+    fi
 fi
-
-
-if [ -z "$TPROXY_SERVE_PORT" ]; then
-    TPROXY_SERVE_PORT=${TPROXY_LISTEN_PORT1}
-fi
-TAPPD_PORT=8090
-
-TPROXY_WG_KEY=$(wg genkey)
-TPROXY_WG_PUBKEY=$(echo $TPROXY_WG_KEY | wg pubkey)
 
 # Step 1: build binaries
 build_host() {
@@ -120,6 +118,8 @@ build_certs() {
 
 build_cfg() {
     echo "Building config files"
+    TPROXY_WG_KEY=$(wg genkey)
+    TPROXY_WG_PUBKEY=$(echo $TPROXY_WG_KEY | wg pubkey)
     # kms
     cat <<EOF > kms.toml
 log_level = "info"

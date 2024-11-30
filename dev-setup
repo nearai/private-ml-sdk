@@ -25,13 +25,21 @@ LAYERS="$THIS_DIR/meta-confidential-compute \
     $THIS_DIR/meta-rust-bin \
     $THIS_DIR/meta-dstack"
 
-pushd .
-source $THIS_DIR/poky/oe-init-build-env $THIS_DIR/bb-build
-popd
+if [ -z "$1" ]; then
+    BUILD_DIR=$THIS_DIR/bb-build
+else
+    BUILD_DIR=$(realpath "$1")
+fi
+
+OE_INIT=$THIS_DIR/poky/oe-init-build-env
 
 for script in $THIS_DIR/setup.d/*.sh; do
     source "$script"
 done
+
+pushd .
+source $OE_INIT $BUILD_DIR
+popd
 
 bitbake-layers add-layer $LAYERS
 
