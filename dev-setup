@@ -1,4 +1,6 @@
 #!/bin/bash
+shopt -s nullglob
+
 if [ -n "$BASH_SOURCE" ]; then
     THIS_SCRIPT=$BASH_SOURCE
 elif [ -n "$ZSH_NAME" ]; then
@@ -14,20 +16,24 @@ fi
 THIS_SCRIPT=$(realpath "$THIS_SCRIPT")
 THIS_DIR=$(dirname "$THIS_SCRIPT")
 
-pushd .
-source $THIS_DIR/poky/oe-init-build-env $THIS_DIR/bb-build
-
-bitbake-layers add-layer \
-    $THIS_DIR/meta-confidential-compute \
+LAYERS="$THIS_DIR/meta-confidential-compute \
     $THIS_DIR/meta-openembedded/meta-oe \
     $THIS_DIR/meta-openembedded/meta-python \
     $THIS_DIR/meta-openembedded/meta-networking \
     $THIS_DIR/meta-openembedded/meta-filesystems \
     $THIS_DIR/meta-virtualization \
     $THIS_DIR/meta-rust-bin \
-    $THIS_DIR/meta-dstack \
+    $THIS_DIR/meta-dstack"
 
+pushd .
+source $THIS_DIR/poky/oe-init-build-env $THIS_DIR/bb-build
 popd
+
+for script in $THIS_DIR/setup.d/*.sh; do
+    source "$script"
+done
+
+bitbake-layers add-layer $LAYERS
 
 # Add scripts/bin to PATH if not already present
 if [[ ":$PATH:" != *":$THIS_DIR/scripts/bin:"* ]]; then
