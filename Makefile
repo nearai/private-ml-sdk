@@ -7,22 +7,19 @@ endif
 BUILD_DIR ?= bb-build
 BUILD_IMAGES_DIR ?= ${BUILD_DIR}/tmp/deploy/images/tdx
 DIST_DIR ?= ${BUILD_DIR}/dist
+export BUILD_DIR
+export DIST_DIR
 
-IMAGE_FILES = dstack-initramfs.cpio.gz \
-	dstack-rootfs-tdx.cpio \
-	dstack-rootfs-dev-tdx.cpio \
-	bzImage \
-	ovmf.fd
-
-ABS_IMAGE_FILES = $(addprefix ${BUILD_IMAGES_DIR}/, ${IMAGE_FILES})
+DIST_NAMES ?= dstack dstack-dev
+ROOTFS_IMAGE_NAMES = $(addsuffix -rootfs,${DIST_NAMES})
 
 all: dist
 
 dist: images
-	DIST_DIR=${DIST_DIR} BUILD_DIR=${BUILD_DIR} ./dist.sh
+	$(foreach dist_name,${DIST_NAMES},./mkimage.sh --dist-name $(dist_name);)
 
 images:
-	bitbake dstack-initramfs dstack-rootfs dstack-rootfs-dev dstack-ovmf
+	bitbake dstack-initramfs dstack-ovmf $(ROOTFS_IMAGE_NAMES)
 
 test:
 	make images dist
@@ -31,7 +28,7 @@ clean:
 	git clean -xdff
 
 clean-dstack:
-	bitbake -c cleansstate dstack-guest dstack-rootfs dstack-rootfs-dev
+	bitbake -c cleansstate dstack-guest $(ROOTFS_IMAGE_NAMES)
 
 clean-initrd:
 	bitbake -c cleansstate dstack-initramfs

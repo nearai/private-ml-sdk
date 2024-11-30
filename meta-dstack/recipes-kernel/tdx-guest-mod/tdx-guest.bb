@@ -7,8 +7,8 @@ inherit module
 
 REPO_ROOT = "${THISDIR}/../../.."
 
-SRC_DIR = "${@oe.utils.conditional('DSTACK_SRC_URI', '', '${REPO_ROOT}/dstack/mod-tdx-guest', 'git/mod-tdx-guest', d)}"
-SRC_URI = "${@oe.utils.conditional('DSTACK_SRC_URI', '', 'file://${REPO_ROOT}/dstack', '${DSTACK_SRC_URI}', d)}"
+SRC_DIR = '${REPO_ROOT}/dstack/mod-tdx-guest'
+SRC_URI = 'file://${REPO_ROOT}/dstack'
 SRCREV = "${DSTACK_SRC_REV}"
 
 S = "${WORKDIR}/${SRC_DIR}"

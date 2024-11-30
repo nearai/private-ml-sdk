@@ -105,49 +105,9 @@ build_host() {
 }
 
 # Step 2: build guest images
-make_image_dist() {
-    local img_name=$1
-    local rootfs_name=$2
-    local encfs=$3
-    local img_dist_dir=$IMAGES_DIR/$img_name
-    local rootfs_hash
-
-    mkdir -p $img_dist_dir
-    rootfs_hash=$(sha256sum "$IMAGE_TMP_DIR/$rootfs_name.cpio" | awk '{print $1}')
-    cat <<EOF > $img_dist_dir/metadata.json
-{
-    "bios": "ovmf.fd",
-    "kernel": "bzImage",
-    "cmdline": "console=ttyS0 init=/init dstack.fde=${encfs} panic=1 systemd.unified_cgroup_hierarchy=0",
-    "initrd": "initramfs.cpio.gz",
-    "rootfs": "rootfs.iso",
-    "rootfs_hash": "$rootfs_hash"
-}
-EOF
-
-    cp $IMAGE_TMP_DIR/ovmf.fd $img_dist_dir/
-    cp $IMAGE_TMP_DIR/bzImage $img_dist_dir/
-    cp $IMAGE_TMP_DIR/initramfs.cpio.gz $img_dist_dir/
-    cp $IMAGE_TMP_DIR/$rootfs_name.iso $img_dist_dir/rootfs.iso
-}
-
 build_guest() {
     echo "Building guest images"
-    if [ -z "$BBPATH" ]; then
-        echo 'BBPATH is not set. Run `source dev-setup` in the meta-dstack/ directory'
-        pushd $SCRIPT_DIR/
-        source dev-setup
-        popd
-    fi
-    DSTACK_VERSION=$(bitbake-getvar --value DISTRO_VERSION)
-    IMAGE_NAME=dstack-$DSTACK_VERSION
-    IMAGE_TMP_DIR=`pwd`/tmp/images/$IMAGE_NAME
-
-    echo "Building $IMAGE_NAME"
-    make -C $META_DIR dist DIST_DIR=$IMAGE_TMP_DIR
-
-    make_image_dist $IMAGE_NAME rootfs 1
-    make_image_dist $IMAGE_NAME-dev rootfs-dev 0
+    make -C $META_DIR dist DIST_DIR=$IMAGES_DIR
 }
 
 # Step 3: make certs
