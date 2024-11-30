@@ -1,9 +1,15 @@
-version: '3'
-
 services:
-  nginx:
-    image: nginx:latest
+  jupyter:
+    image: kvin/cuda-notebook
+    user: root
+    privileged: true
     ports:
-      - "8080:80"
-    restart: always
-
+      - "8888:8888"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    runtime: nvidia
