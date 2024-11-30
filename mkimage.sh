@@ -62,6 +62,7 @@ $Q cp $ROOTFS_IMAGE ${WORK_DIR}/rootfs/rootfs.cpio
 $Q cp $ROOTFS_IMAGE ${OUTPUT_DIR}/rootfs.cpio
 $Q mkisofs -o ${OUTPUT_DIR}/rootfs.iso --max-iso9660-filenames -input-charset utf-8 ${WORK_DIR}/rootfs/
 
+GIT_REVISION=$(git rev-parse HEAD)
 echo "Generating metadata.json to ${OUTPUT_DIR}/metadata.json"
 cat <<EOF > ${OUTPUT_DIR}/metadata.json
 {
@@ -70,6 +71,7 @@ cat <<EOF > ${OUTPUT_DIR}/metadata.json
     "cmdline": "console=ttyS0 init=/init dstack.fde=${ENCFS} panic=1 systemd.unified_cgroup_hierarchy=0",
     "initrd": "initramfs.cpio.gz",
     "rootfs": "rootfs.iso",
-    "rootfs_hash": "$ROOTFS_HASH"
+    "rootfs_hash": "$ROOTFS_HASH",
+    "git_revision": "$GIT_REVISION"
 }
 EOF
