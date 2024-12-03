@@ -105,6 +105,9 @@ build_host() {
 # Step 2: build guest images
 build_guest() {
     echo "Building guest images"
+    if [ -z "$BBPATH" ]; then
+        source $SCRIPT_DIR/dev-setup.sh
+    fi
     make -C $META_DIR dist DIST_DIR=$IMAGES_DIR
 }
 
