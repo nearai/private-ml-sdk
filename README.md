@@ -26,7 +26,78 @@ The system consists of several core components:
 
 ## Getting Started
 
-TODO.
+### Build the TDX guest image
+```
+git clone https://github.com/Phala-Network/Private-ML-SDK --recursive
+pushd Private-ML-SDK/meta-dstack-nvidia
+source dev-setup
+make dist
+popd
+```
+If everything goes well, you should see the images files in `Private-ML-SDK/meta-dstack-nvidia/bb-build/dist/`.
+
+There are two image directories:
+- `dstack-nvidia-0.3.0/`: the production image without developer tools.
+- `dstack-nvidia-dev-0.3.0/`: the development image with developer tools, such as `sshd`, `strace`.
+
+### Run the TDX guest image
+
+This requires a TDX host machine with the TDX driver installed and Nvidia GPU what support GPU TEE installed.
+
+```
+# Add the scripts/bin directory to the PATH environment variable
+pushd Private-ML-SDK/meta-dstack-nvidia/scripts/bin
+PATH=$PATH:`pwd`
+popd
+
+# List the Available GPUs
+dstack lsgpu
+
+# Output like the following:
+# Available GPU IDs:
+# ID      Description
+# 18:00.0 3D controller: NVIDIA Corporation GH100 [H200 SXM 141GB] (rev a1)
+# 2a:00.0 3D controller: NVIDIA Corporation GH100 [H200 SXM 141GB] (rev a1)
+# 3a:00.0 3D controller: NVIDIA Corporation GH100 [H200 SXM 141GB] (rev a1)
+# 5d:00.0 3D controller: NVIDIA Corporation GH100 [H200 SXM 141GB] (rev a1)
+# 9a:00.0 3D controller: NVIDIA Corporation GH100 [H200 SXM 141GB] (rev a1)
+# ab:00.0 3D controller: NVIDIA Corporation GH100 [H200 SXM 141GB] (rev a1)
+# ba:00.0 3D controller: NVIDIA Corporation GH100 [H200 SXM 141GB] (rev a1)
+# db:00.0 3D controller: NVIDIA Corporation GH100 [H200 SXM 141GB] (rev a1)
+
+# Choose one or more GPU IDs and run the following command to create a CVM instance
+dstack new app.yaml -o my-gpu-cvm \
+    --gpu 18:00.0 \
+    --image bb-build/dist/dstack-nvidia-dev-0.3.0 \
+    -c 2 -m 4G -d 100G \
+    --no-fde \
+    --port tcp:10022:22 \
+    --port tcp:8888:8888
+
+# Run the CVM:
+sudo -E dstack run my-gpu-cvm
+```
+
+An example of the `app.yaml` file is as follows:
+
+```yaml
+# app.yaml
+services:
+  jupyter:
+    image: kvin/cuda-notebook
+    privileged: true
+    ports:
+      - "8888:8888"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    runtime: nvidia
+```
+
 
 ## Performance
 
