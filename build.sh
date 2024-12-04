@@ -99,7 +99,7 @@ fi
 build_host() {
     echo "Building binaries"
     (cd $DSTACK_DIR && cargo build --release)
-    cp $DSTACK_DIR/target/release/{tproxy,kms,teepod,certbot,ct_monitor} .
+    cp $DSTACK_DIR/target/release/{tproxy,kms,teepod,certbot,ct_monitor,supervisor} .
 }
 
 # Step 2: build guest images
