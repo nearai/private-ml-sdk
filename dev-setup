@@ -30,6 +30,10 @@ if [ -z "$1" ]; then
 else
     BUILD_DIR=$(realpath "$1")
 fi
+if [ ! -f "$BUILD_DIR/conf/local.conf" ]; then
+    mkdir -p "$BUILD_DIR/conf"
+    cp -f "$THIS_DIR/bb-build/conf/local.conf" "$BUILD_DIR/conf/local.conf"
+fi
 
 OE_INIT=$THIS_DIR/poky/oe-init-build-env
 

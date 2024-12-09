@@ -10,7 +10,7 @@ while [ $# -gt 0 ]; do
             ;;
         *)
             echo "Unknown option: $1"
-            echo "Usage: $0 --image-name NAME --dist-name NAME [--dev]"
+            echo "Usage: $0 --dist-name NAME"
             exit 1
             ;;
     esac
@@ -29,15 +29,15 @@ else
     ENCFS=1
 fi
 
-BUILD_DIR=${BUILD_DIR:-build}
-DIST_DIR=${DIST_DIR:-${BUILD_DIR}/dist}
+BB_BUILD_DIR=$(realpath ${BB_BUILD_DIR:-build})
+DIST_DIR=$(realpath ${DIST_DIR:-${BB_BUILD_DIR}/dist})
 
 ROOTFS_IMAGE_NAME=${DIST_NAME}-rootfs
-WORK_DIR=${BUILD_DIR}/${ROOTFS_IMAGE_NAME}.tmp
-INITRAMFS_IMAGE=${BUILD_DIR}/tmp/deploy/images/tdx/dstack-initramfs.cpio.gz
-ROOTFS_IMAGE=${BUILD_DIR}/tmp/deploy/images/tdx/${ROOTFS_IMAGE_NAME}-tdx.cpio
-KERNEL_IMAGE=${BUILD_DIR}/tmp/deploy/images/tdx/bzImage
-OVMF_FIRMWARE=${BUILD_DIR}/tmp/deploy/images/tdx/ovmf.fd
+WORK_DIR=${BB_BUILD_DIR}/${ROOTFS_IMAGE_NAME}.tmp
+INITRAMFS_IMAGE=${BB_BUILD_DIR}/tmp/deploy/images/tdx/dstack-initramfs.cpio.gz
+ROOTFS_IMAGE=${BB_BUILD_DIR}/tmp/deploy/images/tdx/${ROOTFS_IMAGE_NAME}-tdx.cpio
+KERNEL_IMAGE=${BB_BUILD_DIR}/tmp/deploy/images/tdx/bzImage
+OVMF_FIRMWARE=${BB_BUILD_DIR}/tmp/deploy/images/tdx/ovmf.fd
 ROOTFS_HASH=$(sha256sum "$ROOTFS_IMAGE" | awk '{print $1}')
 DSTACK_VERSION=$(bitbake-getvar --value DISTRO_VERSION)
 OUTPUT_DIR=${OUTPUT_DIR:-"${DIST_DIR}/${DIST_NAME}-${DSTACK_VERSION}"}
@@ -51,6 +51,32 @@ verbose() {
 
 Q=verbose
 
+makeiso() {
+    export SOURCE_DATE_EPOCH="$(date -d20010101 -u +%s)"
+    folder="$1"
+    output_filename="$2"
+    file_mode=0444
+
+    list="$(mktemp)"
+    (cd "$folder"; for f in *; do printf "%s\n" "$f=$PWD/$f"; done) | LC_ALL=C sort >"$list"
+
+    xorriso \
+        -preparer_id xorriso \
+        -volume_date 'all_file_dates' "=$SOURCE_DATE_EPOCH" \
+        -as mkisofs \
+        -iso-level 3 \
+        -graft-points \
+        -full-iso9660-filenames \
+        -joliet \
+        -file-mode $file_mode \
+        -uid 0 \
+        -gid 0 \
+        -path-list "$list" \
+        -output "$output_filename"
+
+    rm -f "$list"
+}
+
 $Q rm -rf ${OUTPUT_DIR}/
 $Q mkdir -p ${OUTPUT_DIR}/
 $Q cp $INITRAMFS_IMAGE ${OUTPUT_DIR}/initramfs.cpio.gz
@@ -60,7 +86,7 @@ $Q cp $OVMF_FIRMWARE ${OUTPUT_DIR}/
 $Q mkdir -p ${WORK_DIR}/rootfs/
 $Q cp $ROOTFS_IMAGE ${WORK_DIR}/rootfs/rootfs.cpio
 $Q cp $ROOTFS_IMAGE ${OUTPUT_DIR}/rootfs.cpio
-$Q mkisofs -o ${OUTPUT_DIR}/rootfs.iso --max-iso9660-filenames -input-charset utf-8 ${WORK_DIR}/rootfs/
+$Q makeiso ${WORK_DIR}/rootfs/ ${OUTPUT_DIR}/rootfs.iso
 
 GIT_REVISION=$(git rev-parse HEAD)
 echo "Generating metadata.json to ${OUTPUT_DIR}/metadata.json"
@@ -75,3 +101,18 @@ cat <<EOF > ${OUTPUT_DIR}/metadata.json
     "git_revision": "$GIT_REVISION"
 }
 EOF
+
+echo "Generating md5sum.txt and sha256sum.txt to ${OUTPUT_DIR}/"
+pushd ${OUTPUT_DIR}/
+find . -type f -not -name md5sum.txt -not -name sha256sum.txt -exec md5sum {} + | sort -k 2 > md5sum.txt
+find . -type f -not -name md5sum.txt -not -name sha256sum.txt -exec sha256sum {} + | sort -k 2 > sha256sum.txt
+popd
+
+if [ x$DSTACK_TAR_RELEASE = x1 ]; then
+    echo "Archiving the output directory to ${OUTPUT_DIR}.tar.gz"
+    if [ x$DSTACK_TAR_EXCLUDE_ROOTFS_CPIO = x1 ]; then
+        TAR_ARGS=--exclude=rootfs.cpio
+    fi
+    (cd ${OUTPUT_DIR} && tar -czf ${OUTPUT_DIR}.tar.gz ${TAR_ARGS} .)
+    echo
+fi
