@@ -16,6 +16,7 @@ IMAGE_INSTALL = "\
     wireguard-tools \
     curl \
     jq \
+    qemu-guest-agent \
 "
 
 # Do not pollute the initrd image with rootfs features
