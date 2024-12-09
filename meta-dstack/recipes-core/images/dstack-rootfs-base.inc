@@ -8,7 +8,7 @@ IMAGE_INSTALL = "\
     systemd \
     netbase \
     iptables \
-    docker \
+    docker-moby \
     docker-compose \
     dstack-prebuilt \
     tdx-guest-ko \

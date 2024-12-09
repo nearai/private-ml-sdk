@@ -6,7 +6,7 @@
 	url = https://github.com/Dstack-TEE/meta-confidential-compute.git
 [submodule "meta-virtualization"]
 	path = meta-virtualization
-	url = https://github.com/lgirdk/meta-virtualization
+	url = https://github.com/Dstack-TEE/meta-virtualization.git
 [submodule "meta-openembedded"]
 	path = meta-openembedded
 	url = https://github.com/openembedded/meta-openembedded

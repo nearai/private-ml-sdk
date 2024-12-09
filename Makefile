@@ -4,10 +4,9 @@ endif
 
 .PHONY: all dist clean-dstack clean-initrd images
 
-BUILD_DIR ?= bb-build
-BUILD_IMAGES_DIR ?= ${BUILD_DIR}/tmp/deploy/images/tdx
-DIST_DIR ?= ${BUILD_DIR}/dist
-export BUILD_DIR
+BB_BUILD_DIR ?= bb-build
+DIST_DIR ?= ${BB_BUILD_DIR}/dist
+export BB_BUILD_DIR
 export DIST_DIR
 
 DIST_NAMES ?= dstack dstack-dev

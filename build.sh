@@ -11,13 +11,31 @@ CERBOT_WORKDIR=$RUN_DIR/certbot
 KMS_UPGRADE_REGISTRY_DIR=$RUN_DIR/kms/upgrade_registry
 KMS_CERT_LOG_DIR=$RUN_DIR/kms/cert_log/
 
-if [ -f ./build-config.sh ]; then
-    CONFIG_FILE=./build-config.sh
-else
-    CONFIG_FILE=$SCRIPT_DIR/build-config.sh
-fi
+CONFIG_FILE=./build-config.sh
 
-cat <<EOF > build-config.sh.tpl
+check_config() {
+    local template_file=$1
+    local config_file=$2
+
+    # extract all variables in template file
+    local variables=$(grep -oE '^\s*[A-Z_]+=' $template_file | sort)
+
+    # check if each variable is set in config file
+    local var missing=0
+    for var in $variables; do
+        if ! grep -qE "^\s*$var" $config_file; then
+            echo "Variable $var is not set in $config_file"
+            missing=1
+        fi
+    done
+    if [ $missing -ne 0 ]; then
+        return 1
+    fi
+    return 0
+}
+
+require_config() {
+    cat <<EOF > build-config.sh.tpl
 # base domain of kms rpc and tproxy rpc
 # 1022.kvin.wang resolves to 10.0.2.2 which is host ip at the
 # cvm point of view
@@ -51,49 +69,26 @@ CF_API_TOKEN=
 CF_ZONE_ID=
 ACME_URL=https://acme-staging-v02.api.letsencrypt.org/directory
 EOF
-
-check_config() {
-    local template_file=$1
-    local config_file=$2
-
-    # extract all variables in template file
-    local variables=$(grep -oE '^\s*[A-Z_]+=' $template_file | sort)
-
-    # check if each variable is set in config file
-    local var missing=0
-    for var in $variables; do
-        if ! grep -qE "^\s*$var" $config_file; then
-            echo "Variable $var is not set in $config_file"
-            missing=1
+    if [ -f $CONFIG_FILE ]; then
+        source $CONFIG_FILE
+        # check if any variable in build-config.sh.tpl is not set in build-config.sh.
+        # This might occur if the build-config.sh is generated from and old repo.
+        check_config build-config.sh.tpl $CONFIG_FILE
+        if [ $? -ne 0 ]; then
+            exit 1
         fi
-    done
-    if [ $missing -ne 0 ]; then
-        return 1
-    fi
-    return 0
-}
+        rm -f build-config.sh.tpl
 
-if [ -f $CONFIG_FILE ]; then
-    source $CONFIG_FILE
-    # check if any variable in build-config.sh.tpl is not set in build-config.sh.
-    # This might occur if the build-config.sh is generated from and old repo.
-    check_config build-config.sh.tpl $CONFIG_FILE
-    if [ $? -ne 0 ]; then
-        exit 1
-    fi
-    rm -f build-config.sh.tpl
-
-    if [ -z "$TPROXY_SERVE_PORT" ]; then
-        TPROXY_SERVE_PORT=${TPROXY_LISTEN_PORT1}
-    fi
-    TAPPD_PORT=8090
-else
-    if [ x"$ACTION" != x"guest" ]; then
+        if [ -z "$TPROXY_SERVE_PORT" ]; then
+            TPROXY_SERVE_PORT=${TPROXY_LISTEN_PORT1}
+        fi
+        TAPPD_PORT=8090
+    else
         mv build-config.sh.tpl $CONFIG_FILE
         echo "Config file $CONFIG_FILE created, please edit it to configure the build"
         exit 1
     fi
-fi
+}
 
 # Step 1: build binaries
 build_host() {
@@ -106,9 +101,9 @@ build_host() {
 build_guest() {
     echo "Building guest images"
     if [ -z "$BBPATH" ]; then
-        source $SCRIPT_DIR/dev-setup
+        source $SCRIPT_DIR/dev-setup $1
     fi
-    make -C $META_DIR dist DIST_DIR=$IMAGES_DIR
+    make -C $META_DIR dist DIST_DIR=$IMAGES_DIR BB_BUILD_DIR=${BBPATH}
 }
 
 # Step 3: make certs
@@ -274,19 +269,23 @@ case $ACTION in
         build_host
         ;;
     guest)
-        build_guest
+        build_guest $2
         ;;
     cfg)
+        require_config
         build_cfg
         ;;
     certs)
+        require_config
         build_certs
         ;;
     wg)
+        require_config
         build_wg
         ;;
     "")
         # If no action specified, build everything
+        require_config
         build_host
         build_guest
         build_certs
