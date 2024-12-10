@@ -88,6 +88,8 @@ services:
     privileged: true
     ports:
       - "8888:8888"
+    volumes:
+      - /var/run/tappd.sock:/var/run/tappd.sock
     deploy:
       resources:
         reservations:
@@ -98,6 +100,24 @@ services:
     runtime: nvidia
 ```
 
+### Getting TDX quote inside the container
+
+1. Install the SDK package:
+```bash
+pip install dstack-sdk
+```
+
+2. Get TDX quote using Python:
+```python
+from dstack_sdk import TappdClient
+
+# Initialize the client
+client = TappdClient()
+
+# Get quote for a message
+result = client.tdx_quote('test')
+print(result.quote)
+```
 
 ## Performance
 
