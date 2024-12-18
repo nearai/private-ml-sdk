@@ -7,6 +7,7 @@ DSTACK_DIR=$SCRIPT_DIR/dstack
 CERTS_DIR=`pwd`/certs
 IMAGES_DIR=`pwd`/images
 RUN_DIR=`pwd`/run
+RUST_BUILD_DIR=`pwd`/rust-target
 CERBOT_WORKDIR=$RUN_DIR/certbot
 KMS_UPGRADE_REGISTRY_DIR=$RUN_DIR/kms/upgrade_registry
 KMS_CERT_LOG_DIR=$RUN_DIR/kms/cert_log/
@@ -93,8 +94,8 @@ EOF
 # Step 1: build binaries
 build_host() {
     echo "Building binaries"
-    (cd $DSTACK_DIR && cargo build --release)
-    cp $DSTACK_DIR/target/release/{tproxy,kms,teepod,certbot,ct_monitor,supervisor} .
+    (cd $DSTACK_DIR && cargo build --release --target-dir ${RUST_BUILD_DIR})
+    cp ${RUST_BUILD_DIR}/release/{tproxy,kms,teepod,certbot,ct_monitor,supervisor} .
 }
 
 # Step 2: build guest images
