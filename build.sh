@@ -49,6 +49,8 @@ TEEPOD_CID_POOL_START=10000
 TEEPOD_CID_POOL_SIZE=1000
 # Whether port mapping from host to CVM is allowed
 TEEPOD_PORT_MAPPING_ENABLED=false
+# Host API configuration, type of uint32
+TEEPOD_VSOCK_LISTEN_PORT=9080
 
 KMS_RPC_LISTEN_PORT=9043
 TPROXY_RPC_LISTEN_PORT=9010
@@ -212,6 +214,9 @@ range = [
 base_domain = "$TPROXY_PUBLIC_DOMAIN"
 port = $TPROXY_SERVE_PORT
 tappd_port = $TAPPD_PORT
+
+[host_api]
+port = $TEEPOD_VSOCK_LISTEN_PORT
 EOF
 
     cat <<EOF > certbot.toml

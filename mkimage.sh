@@ -98,7 +98,9 @@ cat <<EOF > ${OUTPUT_DIR}/metadata.json
     "initrd": "initramfs.cpio.gz",
     "rootfs": "rootfs.iso",
     "rootfs_hash": "$ROOTFS_HASH",
-    "git_revision": "$GIT_REVISION"
+    "version": "$DSTACK_VERSION",
+    "git_revision": "$GIT_REVISION",
+    "shared_ro": true
 }
 EOF
 

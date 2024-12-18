@@ -39,6 +39,7 @@ do_install() {
     install -m 0755 ${CARGO_BINDIR}/tdxctl ${D}${bindir}
     install -m 0755 ${CARGO_BINDIR}/tappd ${D}${bindir}
     install -m 0755 ${S}/basefiles/tboot.sh ${D}${bindir}
+    install -m 0755 ${S}/basefiles/app-compose.sh ${D}${bindir}
 
     install -d ${D}${sysconfdir}/
     install -m 0644 ${S}/basefiles/tdx-attest.conf ${D}${sysconfdir}/tdx-attest.conf
