@@ -24,10 +24,8 @@ fi
 
 
 if [[ "$DIST_NAME" == *-dev ]]; then
-    ENCFS=0
     IS_DEV=true
 else
-    ENCFS=1
     IS_DEV=false
 fi
 
@@ -96,7 +94,7 @@ cat <<EOF > ${OUTPUT_DIR}/metadata.json
 {
     "bios": "ovmf.fd",
     "kernel": "bzImage",
-    "cmdline": "console=ttyS0 init=/init dstack.fde=${ENCFS} panic=1 systemd.unified_cgroup_hierarchy=0",
+    "cmdline": "console=ttyS0 init=/init dstack.fde=1 panic=1 systemd.unified_cgroup_hierarchy=0",
     "initrd": "initramfs.cpio.gz",
     "rootfs": "rootfs.iso",
     "rootfs_hash": "$ROOTFS_HASH",
