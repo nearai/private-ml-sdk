@@ -25,8 +25,10 @@ fi
 
 if [[ "$DIST_NAME" == *-dev ]]; then
     ENCFS=0
+    IS_DEV=true
 else
     ENCFS=1
+    IS_DEV=false
 fi
 
 BB_BUILD_DIR=$(realpath ${BB_BUILD_DIR:-build})
@@ -100,7 +102,8 @@ cat <<EOF > ${OUTPUT_DIR}/metadata.json
     "rootfs_hash": "$ROOTFS_HASH",
     "version": "$DSTACK_VERSION",
     "git_revision": "$GIT_REVISION",
-    "shared_ro": true
+    "shared_ro": true,
+    "is_dev": ${IS_DEV}
 }
 EOF
 
