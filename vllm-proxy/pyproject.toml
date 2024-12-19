@@ -1,0 +1,20 @@
+[tool.poetry]
+name = "vllm-proxy"
+version = "0.1.0"
+description = ""
+authors = ["Shawn TIAN"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+fastapi = {extras = ["standard"], version = "^0.115.6"}
+uvicorn = {extras = ["standard"], version = "^0.34.0"}
+web3 = "^7.6.0"
+eth-account = "^0.13.4"
+eth-utils = "^5.1.0"
+cachetools = "^5.5.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
