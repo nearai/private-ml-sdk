@@ -13,12 +13,12 @@ The `e2e/vllm_chat_example.py` script is designed to demonstrate the interaction
 ### Step-by-Step Guide
 
 1. **Get Attestation Report**:
-   - The script begins by fetching an attestation report from the TDX service. This report includes crucial information such as the signing address and quotes from Intel and NVIDIA.
+   - The script begins by fetching an attestation report from the TDX and GPU. This report includes crucial information such as the signing address and quotes from Intel and NVIDIA.
 
    The report including:
    - signing_address: The address that will be used to sign the response
-   - intel_quote: The quote from Intel
-   - nvidia_payload: The quote from NVIDIA
+   - intel_quote: The quote from Intel CPU
+   - nvidia_payload: The quote from NVIDIA GPU
 
    ```python
    quote = get_attestation_report()

@@ -9,7 +9,7 @@ URL_PREFIX = "https://inference-api.phala.network"
 
 def get_attestation_report():
     """
-    Get the attestation report from tdx service
+    Get the attestation report from CPU and GPU
     """
     url = f"{URL_PREFIX}/v1/attestation/report"
     response = requests.get(url)
@@ -101,12 +101,12 @@ def verify_signature(signing_address: str, signature: str, text: str):
 
 
 if __name__ == "__main__":
-    # 1. Get quote from tdx
+    # 1. Get CPU and GPU attestation report
     quote = get_attestation_report()
     signing_address = quote["signing_address"]
     print("Quote: ", quote)
 
-    # 2. Verify attestation report
+    # 2. Verify CPU and GPU attestation report
     verify_attestation_report(quote)
 
     # 3. Sent chat request to vllm service
