@@ -16,6 +16,3 @@
 [submodule "dstack"]
 	path = dstack
 	url = https://github.com/Dstack-TEE/dstack
-[submodule "meta-nvidia"]
-	path = meta-nvidia
-	url = https://github.com/Phala-Network/meta-nvidia.git
