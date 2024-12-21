@@ -1,0 +1,13 @@
+[Unit]
+Description=NVIDIA Persistence Daemon
+Wants=syslog.target
+Before=app-compose.service
+After=systemd-modules-load.service modprobe@.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/env nvidia-persistenced --uvm-persistence-mode
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,11 @@
+--- mesa-17.0.2/src/mesa/gl.pc.in	2017-08-08 22:01:13.422538871 +0000
++++ mesa-17.0.2/src/mesa/gl.pc.in	2017-08-08 22:01:21.838532172 +0000
+@@ -7,7 +7,7 @@
+ Description: Mesa OpenGL library
+ Requires.private: @GL_PC_REQ_PRIV@
+ Version: @PACKAGE_VERSION@
+-Libs: -L${libdir} -l@GL_LIB@
++Libs: -L${libdir} -lGL -lGLX
+ Libs.private: @GL_PC_LIB_PRIV@
+ Cflags: -I${includedir} @GL_PC_CFLAGS@
+ glx_tls: @GLX_TLS@
