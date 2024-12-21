@@ -1,18 +1,18 @@
 [submodule "poky"]
-	path = meta-dstack-nvidia/poky
+	path = poky
 	url = https://github.com/yoctoproject/poky.git
 [submodule "meta-confidential-compute"]
-	path = meta-dstack-nvidia/meta-confidential-compute
+	path = meta-confidential-compute
 	url = https://github.com/Dstack-TEE/meta-confidential-compute.git
 [submodule "meta-virtualization"]
-	path = meta-dstack-nvidia/meta-virtualization
+	path = meta-virtualization
 	url = https://github.com/Dstack-TEE/meta-virtualization.git
 [submodule "meta-openembedded"]
-	path = meta-dstack-nvidia/meta-openembedded
+	path = meta-openembedded
 	url = https://github.com/openembedded/meta-openembedded
 [submodule "meta-rust-bin"]
-	path = meta-dstack-nvidia/meta-rust-bin
+	path = meta-rust-bin
 	url = https://github.com/rust-embedded/meta-rust-bin
 [submodule "dstack"]
-	path = meta-dstack-nvidia/dstack
+	path = dstack
 	url = https://github.com/Dstack-TEE/dstack

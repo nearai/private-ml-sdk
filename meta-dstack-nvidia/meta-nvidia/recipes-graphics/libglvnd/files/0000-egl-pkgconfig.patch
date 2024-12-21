@@ -1,0 +1,57 @@
+diff --git a/Makefile.am b/Makefile.am
+index 44607b1..674b566 100644
+--- a/Makefile.am
++++ b/Makefile.am
+@@ -3,4 +3,4 @@ ACLOCAL_AMFLAGS = -I m4
+ EXTRA_DIST = autogen.sh README.md
+ 
+ pkgconfigdir = $(libdir)/pkgconfig
+-pkgconfig_DATA = libglvnd.pc
++pkgconfig_DATA = libglvnd.pc egl.pc gl.pc
+diff --git a/configure.ac b/configure.ac
+index 5443734..30c0943 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -295,6 +295,8 @@ CFLAGS="$CFLAGS -Wall -Werror -include config.h -fvisibility=hidden $DEFINES"
+ 
+ AC_CONFIG_FILES([Makefile
+                  libglvnd.pc
++                 egl.pc
++                 gl.pc
+                  include/Makefile
+                  src/Makefile
+                  src/GL/Makefile
+diff --git a/egl.pc.in b/egl.pc.in
+new file mode 100644
+index 0000000..d8d8ceb
+--- /dev/null
++++ b/egl.pc.in
+@@ -0,0 +1,11 @@
++prefix=@prefix@
++includedir=@includedir@
++datarootdir=@datarootdir@
++datadir=@datadir@
++libdir=@libdir@
++
++Name: egl
++Description: Vendor-neutral OpenGL dispatch library vendor interface (EGL)
++Version: @PACKAGE_VERSION@
++Libs: -L${libdir} -lEGL
++Cflags: -I${includedir}
+diff --git a/gl.pc.in b/gl.pc.in
+new file mode 100644
+index 0000000..0de8c3e
+--- /dev/null
++++ b/gl.pc.in
+@@ -0,0 +1,11 @@
++prefix=@prefix@
++includedir=@includedir@
++datarootdir=@datarootdir@
++datadir=@datadir@
++libdir=@libdir@
++
++Name: gl
++Description: Vendor-neutral OpenGL dispatch library vendor interface (GL)
++Version: 9.2.0
++Libs: -L${libdir} -lGL
++Cflags: -I${includedir}
