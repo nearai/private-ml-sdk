@@ -8,7 +8,7 @@ Following E2E example is designed to demonstrate how to use the VLLM Proxy and f
 
 ## E2E Example
 
-The `e2e/vllm_chat_example.py` script is designed to demonstrate the interaction with the VLLM service. Below is a detailed step-by-step guide on how to use this script effectively.
+The `e2e/e2e.py` script is designed to demonstrate the interaction with the VLLM service. Below is a detailed step-by-step guide on how to use this script effectively.
 
 ### Step-by-Step Guide
 
