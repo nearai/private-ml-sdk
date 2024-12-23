@@ -1,0 +1,32 @@
+x-common: &common-config
+  restart: always
+  logging:
+    driver: "json-file"
+    options:
+      max-size: "100m"
+      max-file: "5"
+  runtime: nvidia
+  environment:
+    - NVIDIA_VISIBLE_DEVICES=all
+
+services:
+  vllm-proxy:
+    <<: *common-config
+    image: 0xii/vllm-proxy:0.1.0
+    container_name: vllm-proxy
+    privileged: true
+    devices:
+      - /var/run/tappd.sock:/var/run/tappd.sock
+    ports:
+      - "8000:8000"
+
+  vllm:
+    <<: *common-config
+    image: vllm/vllm-openai:v0.5.4
+    container_name: vllm
+    ports:
+      - "8001:8000"
+    volumes:
+      - /mnt:/mnt
+    command: >
+      --model /mnt/models/meta-llama/meta-Llama-3.1-8b-instruct
