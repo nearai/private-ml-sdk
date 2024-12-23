@@ -29,12 +29,17 @@ def hash(payload: str):
 
 async def stream_vllm_response(request_body: bytes):
     request_sha256 = sha256(request_body).hexdigest()
-    chat_id = None
 
+    # Modify the request body to use the correct model path and lowercasemodel name
+    request_json = json.loads(request_body)
+    request_json["model"] = "/mnt/models/" + request_json["model"].lower()
+    modified_request_body = json.dumps(request_json)
+
+    chat_id = None
     h = sha256()
     async with httpx.AsyncClient() as client:
         # Forward the request to the vllm backend
-        async with client.stream("POST", VLLM_URL, content=request_body) as response:
+        async with client.stream("POST", VLLM_URL, content=modified_request_body) as response:
             # Check if the response status is OK
             if response.status_code != 200:
                 raise Exception(
