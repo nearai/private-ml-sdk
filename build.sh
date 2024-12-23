@@ -7,7 +7,7 @@ export META_SUBDIR=meta-dstack-nvidia/
 export IMAGE_NAME=dstack-nvidia-rootfs
 export REPO_ROOT=${THIS_DIR}
 
-${THIS_DIR}/${META_SUBDIR}/repro-build/repro-build.sh
+${THIS_DIR}/${META_SUBDIR}/repro-build/repro-build.sh -n
 
 for file in ${THIS_DIR}/${META_SUBDIR}/repro-build/dist/*; do
     base_name=$(basename $file)
