@@ -23,7 +23,7 @@ done
 
 BUILDER_NAME=dstack-build
 THIS_DIR=$(cd $(dirname $0); pwd)
-REPO_ROOT=$(dirname $THIS_DIR)
+REPO_ROOT=${REPO_ROOT:-$(dirname $THIS_DIR)}
 GIT_DIR=$REPO_ROOT
 
 HOST_BUILD_DIR_A=${THIS_DIR}/build-a
@@ -41,7 +41,7 @@ rm -rf .dummy
 
 build_to() {
     mkdir -p $1
-    BUILD_CMD="${2} ${GUEST_SRC_DIR}/build.sh guest ./bb-build"
+    BUILD_CMD="${2} ${GUEST_SRC_DIR}/${META_SUBDIR}/build.sh guest ./bb-build"
     docker run --platform linux/amd64 --rm \
         --user $(id -u):$(id -g) \
         -v $REPO_ROOT:$GUEST_SRC_DIR \
