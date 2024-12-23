@@ -1,0 +1,45 @@
+
+ROOTFS_ENCRYPTION="--rootfs-encryption=true"
+if [ x"${kargs_dstack_fde}" = x"0" ]; then
+    echo "FDE is disabled"
+    ROOTFS_ENCRYPTION="--rootfs-encryption=false"
+fi
+if [ x"${kargs_dstack_integrity}" = x"1" ]; then
+    ROOTINTEGRITY="--rootfs-integrity"
+fi
+
+ROOTFS_CD=/dev/sr0
+ROOTFS_CD_MNT=/mnt/rootfs-cdrom
+ROOTFS_HD=/dev/vda
+ROOTFS_DIR=/root
+
+KMFS_WORK_DIR=/kmfs
+SHARED_COPY=${KMFS_WORK_DIR}/config
+HOST_SHARED=/mnt/host-shared
+
+panic() {
+    echo "$1"
+    exit 1
+}
+
+echo "Setting up FDE"
+echo "FDE setup arguments:"
+echo "  HOST_SHARED=$HOST_SHARED"
+echo "  SHARED_COPY=$SHARED_COPY" 
+echo "  KMFS_WORK_DIR=$KMFS_WORK_DIR"
+echo "  ROOTFS_DIR=$ROOTFS_DIR"
+echo "  ROOTFS_HD=$ROOTFS_HD"
+echo "  ROOTFS_CD=$ROOTFS_CD"
+echo "  ROOTFS_CD_MNT=$ROOTFS_CD_MNT"
+echo "  ROOTINTEGRITY=$ROOTINTEGRITY"
+echo "  ROOTFS_ENCRYPTION=$ROOTFS_ENCRYPTION"
+
+tdxctl setup-fde \
+    --host-shared $HOST_SHARED \
+    --host-shared-copy $SHARED_COPY \
+    --work-dir $KMFS_WORK_DIR \
+    --rootfs-dir $ROOTFS_DIR \
+    --root-hd $ROOTFS_HD \
+    --root-cdrom $ROOTFS_CD \
+    --root-cdrom-mnt $ROOTFS_CD_MNT \
+    $ROOTFS_ENCRYPTION $ROOTINTEGRITY || panic "Failed to setup FDE"

@@ -1,0 +1,25 @@
+From 77c79b5aeabe614ebaa993c6a0e6490798d92059 Mon Sep 17 00:00:00 2001
+From: Kevin Wang <wy721@qq.com>
+Date: Mon, 4 Nov 2024 04:27:21 +0000
+Subject: [PATCH 1/5] Update path to native BaseTools
+
+---
+ OvmfPkg/build.sh | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/OvmfPkg/build.sh b/OvmfPkg/build.sh
+index 279f0d099a..285f061bf4 100755
+--- a/OvmfPkg/build.sh
++++ b/OvmfPkg/build.sh
+@@ -24,7 +24,7 @@ then
+ # this assumes svn pulls have the same root dir
+ #  export EDK_TOOLS_PATH=`pwd`/../BaseTools
+ # This version is for the tools source in edk2
+-  export EDK_TOOLS_PATH=`pwd`/BaseTools
++  export EDK_TOOLS_PATH=BBAKE_EDK_TOOLS_PATH/BaseTools
+   echo $EDK_TOOLS_PATH
+   source edksetup.sh BaseTools
+ else
+-- 
+2.43.0
+

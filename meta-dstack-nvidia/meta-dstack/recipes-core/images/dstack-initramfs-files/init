@@ -1,0 +1,37 @@
+#!/bin/sh
+set -e
+
+export PATH=/sbin:/bin:/usr/sbin:/usr/bin
+
+mkdir -p /proc
+mkdir -p /sys
+mkdir -p /run
+mount -t proc proc /proc
+mount -t sysfs sysfs /sys
+mount -t tmpfs tmpfs /run
+
+mkdir -p /dev
+mount -t devtmpfs devtmpfs /dev
+
+mkdir -p /dev/pts
+mount -t devpts devpts /dev/pts
+
+ifconfig lo up 127.0.0.1
+ifconfig eth0 up
+udhcpc -i eth0
+
+modprobe tdx-guest || true
+
+source /scripts/boot-vars
+source /scripts/kmfs-setup
+
+# mount move dirs
+mkdir -p /root${HOST_SHARED}
+mount --move ${HOST_SHARED} /root${HOST_SHARED}
+mount --move /sys /root/sys
+mount --move /proc /root/proc
+mount --move /dev /root/dev
+mount --move /run /root/run
+
+echo "Switching to new root"
+exec switch_root /root /init

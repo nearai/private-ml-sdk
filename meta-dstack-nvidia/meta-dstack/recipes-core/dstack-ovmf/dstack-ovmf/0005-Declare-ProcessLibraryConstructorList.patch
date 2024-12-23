@@ -1,0 +1,24 @@
+From 5c718d0c37c65e845b100060fbc08cae26412c35 Mon Sep 17 00:00:00 2001
+From: Kevin Wang <wy721@qq.com>
+Date: Mon, 4 Nov 2024 04:35:18 +0000
+Subject: [PATCH 5/5] Declare ProcessLibraryConstructorList
+
+---
+ OvmfPkg/Sec/SecMain.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/OvmfPkg/Sec/SecMain.c b/OvmfPkg/Sec/SecMain.c
+index d13a948509..2a44c4ed24 100644
+--- a/OvmfPkg/Sec/SecMain.c
++++ b/OvmfPkg/Sec/SecMain.c
+@@ -885,6 +885,7 @@ SecCoreStartupWithStack (
+     InitializeCpuExceptionHandlers (NULL);
+   }
+ 
++  void ProcessLibraryConstructorList (void);
+   ProcessLibraryConstructorList ();
+ 
+   if (!SevEsIsEnabled ()) {
+-- 
+2.43.0
+
