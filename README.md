@@ -27,14 +27,33 @@ The system consists of several core components:
 ## Getting Started
 
 ### Build the TDX guest image
+
+Prerequisites:
+- Install Docker:
+  ```bash
+  curl -fsSL https://get.docker.com -o get-docker.sh
+  sudo sh get-docker.sh
+  ```
+- Add the current user to the docker group:
+  ```bash
+  sudo usermod -aG docker $USER
+  newgrp docker  # Apply group changes without logout
+  ```
+- Verify Docker installation:
+  ```bash
+  docker --version
+  docker run hello-world
+  ```
+
+Clone the repository and build the TDX guest image:
+
 ```
 git clone https://github.com/Phala-Network/Private-ML-SDK --recursive
-pushd Private-ML-SDK/meta-dstack-nvidia
-source dev-setup
-make dist
-popd
+cd Private-ML-SDK/
+./build.sh
 ```
-If everything goes well, you should see the images files in `Private-ML-SDK/meta-dstack-nvidia/bb-build/dist/`.
+
+If everything goes well, you should see the images files in `Private-ML-SDK/images/`.
 
 There are two image directories:
 - `dstack-nvidia-0.3.0/`: the production image without developer tools.
@@ -68,7 +87,7 @@ dstack lsgpu
 # Choose one or more GPU IDs and run the following command to create a CVM instance
 dstack new app.yaml -o my-gpu-cvm \
     --gpu 18:00.0 \
-    --image bb-build/dist/dstack-nvidia-dev-0.3.0 \
+    --image images/dstack-nvidia-dev-0.3.0 \
     -c 2 -m 4G -d 100G \
     --no-fde \
     --port tcp:10022:22 \
