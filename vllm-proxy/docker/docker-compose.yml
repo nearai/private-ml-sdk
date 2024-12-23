@@ -15,7 +15,7 @@ services:
     image: 0xii/vllm-proxy:0.1.0
     container_name: vllm-proxy
     privileged: true
-    devices:
+    volumes:
       - /var/run/tappd.sock:/var/run/tappd.sock
     ports:
       - "8000:8000"

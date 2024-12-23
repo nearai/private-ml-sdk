@@ -3,9 +3,13 @@ import eth_utils
 import base64, json
 import subprocess
 import eth_account
-import http.client, json, socket
+import json
+import socket
 
+from http.client import HTTPConnection
+from dstack_sdk import TappdClient
 from verifier import cc_admin
+
 from app.logger import log
 
 
@@ -26,9 +30,7 @@ class Quote:
             ).hex()
             gpu_evidence = cc_admin.collect_gpu_evidence(pub_keccak)[0]
 
-            # quote = subprocess.check_output(["tdx_quote"], input=pub_keccak.encode())
-            quote = self.get_quote(pub_keccak)
-            self.intel_quote = base64.b64encode(quote).decode("utf-8")
+            self.intel_quote = self.get_quote(pub_keccak)
             self.nvidia_payload = self.build_payload(
                 pub_keccak,
                 gpu_evidence["attestationReportHexStr"],
@@ -42,22 +44,14 @@ class Quote:
         )
 
     def get_quote(self, pub_keccak: str):
-        try:
-            data = json.dumps({"report_data": pub_keccak})
-            headers = {"Content-Type": "application/json"}
+        # Initialize the client
+        client = TappdClient()
 
-            sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-            sock.connect("/var/run/tappd.sock")
-
-            with http.client.HTTPConnection("localhost") as conn:
-                conn.sock = sock
-                conn.request(
-                    "POST", "/prpc/Tappd.TdxQuote?json", body=data, headers=headers
-                )
-                return conn.getresponse().read().decode()
-        except Exception as e:
-            log.error(f"Failed to get quote: {e}")
-            return None
+        # Get quote for a message
+        result = client.tdx_quote(pub_keccak)
+        quote = bytes.fromhex(result.quote)
+        self.intel_quote = base64.b64encode(quote).decode("utf-8")
+        return result.quote
 
     def sign(self, content: str):
         return self.raw_acct.sign_message(

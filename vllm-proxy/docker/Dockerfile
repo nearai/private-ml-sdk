@@ -21,8 +21,7 @@ FROM base as runtime
 WORKDIR /app
 
 COPY src ./
-RUN ls
 
 EXPOSE 8000
 
-ENTRYPOINT ["/entrypoint.sh"]
+ENTRYPOINT ["./entrypoint.sh"]

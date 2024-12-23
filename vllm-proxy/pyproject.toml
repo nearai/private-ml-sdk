@@ -13,7 +13,7 @@ web3 = "^7.6.0"
 eth-account = "^0.13.4"
 eth-utils = "^5.1.0"
 cachetools = "^5.5.0"
-
+dstack-sdk = "^0.1.5"
 
 [build-system]
 requires = ["poetry-core"]
