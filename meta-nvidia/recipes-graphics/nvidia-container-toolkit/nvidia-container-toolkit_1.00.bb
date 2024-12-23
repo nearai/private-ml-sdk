@@ -19,16 +19,22 @@ do_compile() {
     
 }
 
+install_bin_stripped() {
+    install -m 0755 ${S}/src/${GO_IMPORT}/$1 ${D}${bindir}/$1
+    ${STRIP} --remove-section=.note.gnu.build-id ${D}${bindir}/$1
+    ${STRIP} --remove-section=.note.go.buildid ${D}${bindir}/$1
+}
+
 do_install() {
     # Create the target directories in the image file system
     install -d ${D}${bindir}
     
     # Copy each binary to the target directory
-    install -m 0755 ${S}/src/${GO_IMPORT}/nvidia-container-runtime ${D}${bindir}
-    install -m 0755 ${S}/src/${GO_IMPORT}/nvidia-container-runtime.cdi ${D}${bindir}
-    install -m 0755 ${S}/src/${GO_IMPORT}/nvidia-container-runtime-hook ${D}${bindir}
-    install -m 0755 ${S}/src/${GO_IMPORT}/nvidia-container-runtime.legacy ${D}${bindir}
-    install -m 0755 ${S}/src/${GO_IMPORT}/nvidia-ctk ${D}${bindir}
+    install_bin_stripped nvidia-container-runtime
+    install_bin_stripped nvidia-container-runtime.cdi
+    install_bin_stripped nvidia-container-runtime-hook
+    install_bin_stripped nvidia-container-runtime.legacy
+    install_bin_stripped nvidia-ctk
 
     ln -sf nvidia-container-runtime-hook ${D}${bindir}/nvidia-container-toolkit
 
