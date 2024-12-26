@@ -249,7 +249,8 @@ class DStackManager:
                 "version": "1.0.0",
                 "features": [],
                 "runner": "docker-compose",
-                "docker_compose_file": compose_content
+                "docker_compose_file": compose_content,
+                "local_key_provider_enabled": args.local_key_provider
             }
             with open(os.path.join(shared_dir, 'app-compose.json'), 'w') as f:
                 json.dump(app_compose, f, indent=4)
@@ -258,7 +259,14 @@ class DStackManager:
             image_path = args.image or self.get_default_image_path()
             rootfs_hash = self._read_image_metadata(image_path)
             with open(os.path.join(shared_dir, 'config.json'), 'w') as f:
-                json.dump({"rootfs_hash": rootfs_hash, "docker_registry": self.config.docker_registry}, f, indent=4)
+                config = {
+                    "rootfs_hash": rootfs_hash,
+                    "docker_registry": self.config.docker_registry,
+                    "pccs_url": "https://api.trustedservices.intel.com/sgx/certification/v4",
+                    "host_api_url": f"vsock://2:{args.host_vsock_port}/api",
+                    "host_vsock_port": args.host_vsock_port,
+                }
+                json.dump(config, f, indent=4)
 
             # Create VM manifest
             memory = self._convert_memory_to_mb(str(args.memory))
@@ -418,6 +426,8 @@ def main():
     setup_parser.add_argument('-g', '--gpu', type=str, action='append', help='GPU device')
     setup_parser.add_argument('-p', '--port', action='append', type=str, help='Port mapping in format: protocol[:address]:from:to')
     setup_parser.add_argument('--no-fde', action='store_true', help='Disable Full Disk Encryption')
+    setup_parser.add_argument('--local-key-provider', action='store_true', help='Enable local key provider')
+    setup_parser.add_argument('--host-vsock-port', type=int, default=3443, help='Host vsock port')
 
     # Start command
     start_parser = subparsers.add_parser('run', help='Start an instance')
