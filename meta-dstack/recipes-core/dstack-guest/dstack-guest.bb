@@ -8,7 +8,8 @@ inherit systemd update-rc.d
 REPO_ROOT = "${THISDIR}/../../.."
 
 SRC_DIR = '${REPO_ROOT}/dstack'
-SRC_URI = 'file://${REPO_ROOT}/dstack'
+SRC_URI = 'file://${REPO_ROOT}/dstack \
+           file://docker-daemon.json'
 SRCREV = "${DSTACK_SRC_REV}"
 
 S = "${WORKDIR}/${SRC_DIR}"
@@ -44,7 +45,7 @@ do_install() {
     install -m 0755 ${S}/basefiles/tboot.sh ${D}${bindir}
     install -m 0755 ${S}/basefiles/app-compose.sh ${D}${bindir}
     install -m 0755 ${S}/basefiles/wg-checker.sh ${D}${bindir}
-    install -m 0755 ${S}/basefiles/docker-daemon.json ${D}${sysconfdir}/docker/daemon.json
+    install -m 0755 ${WORKDIR}/docker-daemon.json ${D}${sysconfdir}/docker/daemon.json
     install -m 0644 ${S}/basefiles/journald.conf ${D}${sysconfdir}/systemd/journald.conf.d/dstack.conf
 
     install -d ${D}${sysconfdir}/
