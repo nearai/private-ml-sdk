@@ -6,9 +6,11 @@ export PATH=/sbin:/bin:/usr/sbin:/usr/bin
 mkdir -p /proc
 mkdir -p /sys
 mkdir -p /run
+mkdir -p /tapp
 mount -t proc proc /proc
 mount -t sysfs sysfs /sys
 mount -t tmpfs tmpfs /run
+mount -t tmpfs tmpfs /tapp
 
 mkdir -p /dev
 mount -t devtmpfs devtmpfs /dev
@@ -26,12 +28,13 @@ source /scripts/boot-vars
 source /scripts/kmfs-setup
 
 # mount move dirs
-mkdir -p /root${HOST_SHARED}
-mount --move ${HOST_SHARED} /root${HOST_SHARED}
-mount --move /sys /root/sys
-mount --move /proc /root/proc
-mount --move /dev /root/dev
-mount --move /run /root/run
+mount_move_all() {
+    for dir in $@; do
+        mkdir -p /root/$dir
+        mount --move /$dir /root/$dir
+    done
+}
+mount_move_all sys proc dev run tapp
 
 echo "Switching to new root"
 exec switch_root /root /init
