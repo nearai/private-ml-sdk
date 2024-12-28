@@ -1,3 +1,4 @@
 /build
 /bb-build
 *.qcow2
+__pycache__/
