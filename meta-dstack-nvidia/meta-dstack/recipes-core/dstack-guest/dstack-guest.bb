@@ -8,13 +8,15 @@ inherit systemd update-rc.d
 REPO_ROOT = "${THISDIR}/../../.."
 
 SRC_DIR = '${REPO_ROOT}/dstack'
-SRC_URI = 'file://${REPO_ROOT}/dstack'
+SRC_URI = 'file://${REPO_ROOT}/dstack \
+           file://docker-daemon.json'
 SRCREV = "${DSTACK_SRC_REV}"
 
 S = "${WORKDIR}/${SRC_DIR}"
 
+DSTACK_SERVICES = "tappd.service tboot.service app-compose.service wg-checker.service"
 SYSTEMD_PACKAGES = "${@bb.utils.contains('DISTRO_FEATURES','systemd','${PN}','',d)}"
-SYSTEMD_SERVICE:${PN} = "${@bb.utils.contains('DISTRO_FEATURES','systemd','tappd.service tboot.service app-compose.service','',d)}"
+SYSTEMD_SERVICE:${PN} = "${@bb.utils.contains('DISTRO_FEATURES','systemd','${DSTACK_SERVICES}','',d)}"
 SYSTEMD_AUTO_ENABLE:${PN} = "enable"
 
 INITSCRIPT_PACKAGES += "${@bb.utils.contains('DISTRO_FEATURES','systemd','','${PN}',d)}"
@@ -35,10 +37,16 @@ do_compile[network] = "1"
 
 do_install() {
     install -d ${D}${bindir}
+    install -d ${D}${sysconfdir}/docker
+    install -d ${D}${sysconfdir}/systemd/journald.conf.d
     install -m 0755 ${CARGO_BINDIR}/iohash ${D}${bindir}
     install -m 0755 ${CARGO_BINDIR}/tdxctl ${D}${bindir}
     install -m 0755 ${CARGO_BINDIR}/tappd ${D}${bindir}
     install -m 0755 ${S}/basefiles/tboot.sh ${D}${bindir}
+    install -m 0755 ${S}/basefiles/app-compose.sh ${D}${bindir}
+    install -m 0755 ${S}/basefiles/wg-checker.sh ${D}${bindir}
+    install -m 0755 ${WORKDIR}/docker-daemon.json ${D}${sysconfdir}/docker/daemon.json
+    install -m 0644 ${S}/basefiles/journald.conf ${D}${sysconfdir}/systemd/journald.conf.d/dstack.conf
 
     install -d ${D}${sysconfdir}/
     install -m 0644 ${S}/basefiles/tdx-attest.conf ${D}${sysconfdir}/tdx-attest.conf
@@ -50,7 +58,7 @@ do_install() {
         install -m 0644 ${S}/basefiles/tappd.service ${D}${systemd_system_unitdir}
         install -m 0644 ${S}/basefiles/tboot.service ${D}${systemd_system_unitdir}
         install -m 0644 ${S}/basefiles/app-compose.service ${D}${systemd_system_unitdir}
-
+        install -m 0644 ${S}/basefiles/wg-checker.service ${D}${systemd_system_unitdir}
         install -m 0644 ${S}/basefiles/llmnr.conf ${D}${sysconfdir}/systemd/resolved.conf.d
     else
         install -d ${D}${sysconfdir}/init.d

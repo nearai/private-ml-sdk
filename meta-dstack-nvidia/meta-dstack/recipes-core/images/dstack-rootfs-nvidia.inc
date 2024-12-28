@@ -3,7 +3,6 @@ NVIDIA_GROUP = "acpid \
     nvidia-firmware \
     nvidia-persistenced \
     nvidia-container-toolkit \
-    nvidia-docker-config \
     kernel-module-video \
 "
 KERNEL_MODULE_AUTOLOAD:append = " nvidia nvidia-drm nvidia-modeset nvidia-uvm video"
