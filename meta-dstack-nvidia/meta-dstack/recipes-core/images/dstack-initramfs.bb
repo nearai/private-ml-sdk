@@ -6,6 +6,8 @@ PACKAGE_INSTALL = "\
     base-files \
     cryptsetup \
     e2fsprogs-mke2fs \
+    e2fsprogs-resize2fs \
+    e2fsprogs-e2fsck \
     tdx-guest-ko \
     dstack-initramfs-files \
     dstack-guest \

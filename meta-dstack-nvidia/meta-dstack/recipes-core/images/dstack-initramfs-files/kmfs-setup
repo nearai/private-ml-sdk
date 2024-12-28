@@ -14,7 +14,7 @@ ROOTFS_HD=/dev/vda
 ROOTFS_DIR=/root
 
 KMFS_WORK_DIR=/kmfs
-SHARED_COPY=${KMFS_WORK_DIR}/config
+SHARED_COPY=/tapp
 HOST_SHARED=/mnt/host-shared
 
 panic() {
