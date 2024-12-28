@@ -9,6 +9,8 @@ import string
 import subprocess
 import uuid
 import configparser
+import host_api
+import threading
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -20,6 +22,7 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
 
 def generate_config_paths():
     paths = [
@@ -49,6 +52,7 @@ class PortMap:
             "to": self.to_port
         }
 
+
 @dataclass
 class VMConfig:
     """Configuration for VM instance."""
@@ -74,6 +78,7 @@ class VMConfig:
             "port_map": [p.to_dict() for p in self.port_map],
             "created_at_ms": self.created_at_ms
         }
+
 
 def merge2(a, b):
     if isinstance(a, dict) and isinstance(b, dict):
@@ -109,7 +114,7 @@ def test_merge_dicts():
 def ini_to_dict(filename):
     config = configparser.ConfigParser()
     config.read(filename)
-    
+
     result = {}
     for section in config.sections():
         result[section] = {}
@@ -176,7 +181,7 @@ class DStackManager:
         metadata_path = os.path.join(image_path, 'metadata.json')
         if not os.path.isfile(metadata_path):
             raise FileNotFoundError(f"Image metadata not found at {metadata_path}")
-        
+
         try:
             with open(metadata_path, 'r') as f:
                 metadata = json.load(f)
@@ -263,8 +268,6 @@ class DStackManager:
                     "rootfs_hash": rootfs_hash,
                     "docker_registry": self.config.docker_registry,
                     "pccs_url": "https://api.trustedservices.intel.com/sgx/certification/v4",
-                    "host_api_url": f"vsock://2:{args.host_vsock_port}/api",
-                    "host_vsock_port": args.host_vsock_port,
                 }
                 json.dump(config, f, indent=4)
 
@@ -283,7 +286,7 @@ class DStackManager:
                 gpu=args.gpu or [],
                 memory=memory,
                 disk_size=disk_size,
-                image=os.path.basename(image_path),
+                image=os.path.basename(image_path.rstrip('/')),
                 port_map=port_map,
                 created_at_ms=int(datetime.now().timestamp() * 1000)
             )
@@ -297,7 +300,7 @@ class DStackManager:
             logger.error(f"Failed to setup instance: {str(e)}")
             raise
 
-    def run_instance(self, vm_dir: str, memory: Optional[str] = None, vcpus: Optional[int] = None) -> None:
+    def run_instance(self, vm_dir: str, host_port: int, memory: Optional[str] = None, vcpus: Optional[int] = None) -> None:
         """Run a VM instance from the specified directory.
 
         Args:
@@ -315,6 +318,15 @@ class DStackManager:
         # Get image path and metadata
         image_path = os.path.join(self.config.image_path, manifest['image'])
         img_metadata_path = os.path.join(image_path, 'metadata.json')
+
+        # Update config.json with host API URL and port
+        shared_dir = os.path.join(vm_dir, 'shared')
+        config_file = os.path.join(shared_dir, 'config.json')
+        config = json.load(open(config_file, 'r'))
+        config['host_api_url'] = f"http://10.0.2.2:{host_port}/api"
+        config['host_vsock_port'] = host_port
+        with open(config_file, 'w') as f:
+            json.dump(config, f, indent=4)
         
         if not os.path.exists(img_metadata_path):
             raise ValueError(f"Image metadata not found at {img_metadata_path}")
@@ -427,13 +439,13 @@ def main():
     setup_parser.add_argument('-p', '--port', action='append', type=str, help='Port mapping in format: protocol[:address]:from:to')
     setup_parser.add_argument('--no-fde', action='store_true', help='Disable Full Disk Encryption')
     setup_parser.add_argument('--local-key-provider', action='store_true', help='Enable local key provider')
-    setup_parser.add_argument('--host-vsock-port', type=int, default=3443, help='Host vsock port')
 
     # Start command
     start_parser = subparsers.add_parser('run', help='Start an instance')
     start_parser.add_argument('dir', type=str, help='Work directory')
     start_parser.add_argument('-m', '--memory', type=str, help='Memory size (e.g. 2G, 512M)')
     start_parser.add_argument('-c', '--vcpus', type=int, help='Number of virtual CPUs')
+    start_parser.add_argument('--kp-port', type=int, default=3443, help='The key provider listening port')
 
     # List Gpus command
     subparsers.add_parser('lsgpu', help='List available GPUs')
@@ -445,7 +457,12 @@ def main():
         manager.setup_instance(args)
     elif args.command == 'run':
         manager = DStackManager()
-        manager.run_instance(args.dir, memory=args.memory, vcpus=args.vcpus)
+        config = host_api.ServerConfig(vm_dir=args.dir, kp_address="127.0.0.1", kp_port=args.kp_port)
+        api, host_port = host_api.create_http_server(config)
+        print(f"Starting HTTP server on localhost:{host_port}")
+        thread = threading.Thread(target=api.serve_forever, daemon=True)
+        thread.start()
+        manager.run_instance(args.dir, host_port, memory=args.memory, vcpus=args.vcpus)
     elif args.command == 'lsgpu':
         list_available_gpus()
     else:
@@ -453,3 +470,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
