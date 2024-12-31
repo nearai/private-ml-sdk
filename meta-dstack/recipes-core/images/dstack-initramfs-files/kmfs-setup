@@ -42,4 +42,5 @@ tdxctl setup-fde \
     --root-hd $ROOTFS_HD \
     --root-cdrom $ROOTFS_CD \
     --root-cdrom-mnt $ROOTFS_CD_MNT \
+    --rootfs-hash $kargs_dstack_rootfs_hash \
     $ROOTFS_ENCRYPTION $ROOTINTEGRITY || panic "Failed to setup FDE"
