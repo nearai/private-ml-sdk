@@ -63,6 +63,7 @@ class VMConfig:
     memory: int
     disk_size: int
     image: str
+    image_path: str
     port_map: List[PortMap]
     created_at_ms: int
 
@@ -75,6 +76,7 @@ class VMConfig:
             "memory": self.memory,
             "disk_size": self.disk_size,
             "image": self.image,
+            "image_path": self.image_path,
             "port_map": [p.to_dict() for p in self.port_map],
             "created_at_ms": self.created_at_ms
         }
@@ -136,7 +138,6 @@ def load_configs_merged(config_paths):
 class DStackConfig:
     """Configuration for DStack client."""
     docker_registry: Optional[str] = None
-    image_path: str = './images'
     default_image_name: str = ''
     qemu_path: str = 'qemu-system-x86_64'
 
@@ -150,7 +151,6 @@ class DStackConfig:
             return fallback
         me = cls()
         me.docker_registry = cfg_get('docker', 'registry', cls.docker_registry)
-        me.image_path = os.path.abspath(cfg_get('image', 'path', cls.image_path))
         me.default_image_name = cfg_get('image', 'default', cls.default_image_name)
         me.qemu_path = cfg_get('qemu', 'path', cls.qemu_path)
         return me
@@ -160,10 +160,6 @@ class DStackManager:
     def __init__(self):
         self.run_path = os.path.abspath(os.getenv('RUN_PATH', './vms'))
         self.config = DStackConfig.load()
-
-    def get_default_image_path(self) -> str:
-        """Get the full default image path."""
-        return os.path.join(self.config.image_path, self.config.default_image_name)
 
     def _generate_instance_id(self) -> str:
         """Generate a random instance ID."""
@@ -259,10 +255,8 @@ class DStackManager:
             }
             with open(os.path.join(shared_dir, 'app-compose.json'), 'w') as f:
                 json.dump(app_compose, f, indent=4)
-
             # Read image metadata and create config.json
-            image_path = args.image or self.get_default_image_path()
-            rootfs_hash = self._read_image_metadata(image_path)
+            rootfs_hash = self._read_image_metadata(args.image)
             with open(os.path.join(shared_dir, 'config.json'), 'w') as f:
                 config = {
                     "rootfs_hash": rootfs_hash,
@@ -286,7 +280,8 @@ class DStackManager:
                 gpu=args.gpu or [],
                 memory=memory,
                 disk_size=disk_size,
-                image=os.path.basename(image_path.rstrip('/')),
+                image_path=args.image,
+                image=os.path.basename(args.image.rstrip('/')),
                 port_map=port_map,
                 created_at_ms=int(datetime.now().timestamp() * 1000)
             )
@@ -300,7 +295,7 @@ class DStackManager:
             logger.error(f"Failed to setup instance: {str(e)}")
             raise
 
-    def run_instance(self, vm_dir: str, host_port: int, memory: Optional[str] = None, vcpus: Optional[int] = None) -> None:
+    def run_instance(self, vm_dir: str, host_port: int, memory: Optional[str] = None, vcpus: Optional[int] = None, imgdir: Optional[str] = None) -> None:
         """Run a VM instance from the specified directory.
 
         Args:
@@ -316,7 +311,7 @@ class DStackManager:
             manifest = json.load(f)
 
         # Get image path and metadata
-        image_path = os.path.join(self.config.image_path, manifest['image'])
+        image_path = manifest.get('image_path') or os.path.join(imgdir, manifest['image'])
         img_metadata_path = os.path.join(image_path, 'metadata.json')
 
         # Update config.json with host API URL and port
@@ -437,7 +432,6 @@ def main():
     setup_parser.add_argument('-d', '--disk', type=str, default='20G', help='Disk size (e.g., 20G)')
     setup_parser.add_argument('-g', '--gpu', type=str, action='append', help='GPU device')
     setup_parser.add_argument('-p', '--port', action='append', type=str, help='Port mapping in format: protocol[:address]:from:to')
-    setup_parser.add_argument('--no-fde', action='store_true', help='Disable Full Disk Encryption')
     setup_parser.add_argument('--local-key-provider', action='store_true', help='Enable local key provider')
 
     # Start command
@@ -445,6 +439,7 @@ def main():
     start_parser.add_argument('dir', type=str, help='Work directory')
     start_parser.add_argument('-m', '--memory', type=str, help='Memory size (e.g. 2G, 512M)')
     start_parser.add_argument('-c', '--vcpus', type=int, help='Number of virtual CPUs')
+    start_parser.add_argument('--imgdir', type=str, help='The image directory')
     start_parser.add_argument('--kp-port', type=int, default=3443, help='The key provider listening port')
 
     # List Gpus command
@@ -462,7 +457,7 @@ def main():
         print(f"Starting HTTP server on localhost:{host_port}")
         thread = threading.Thread(target=api.serve_forever, daemon=True)
         thread.start()
-        manager.run_instance(args.dir, host_port, memory=args.memory, vcpus=args.vcpus)
+        manager.run_instance(args.dir, host_port, memory=args.memory, vcpus=args.vcpus, imgdir=args.imgdir)
     elif args.command == 'lsgpu':
         list_available_gpus()
     else:
