@@ -1,12 +1,19 @@
 # VLLM OpenAI with TDX Attestation
 
-# VLLM Proxy
+## VLLM Proxy
 
 The VLLM Proxy wraps the VLLM service and provides a simple interface for obtaining the attestation report and verifying the signature of chat completions requests.
 
 Following E2E example is designed to demonstrate how to use the VLLM Proxy and full steps of the attestation process.
 
 Also, for the deployment, the vllm service can be deployed with `docker-compose.yml` in the `vllm-proxy/docker` directory, which refers to the [README.md](../vllm-proxy/README.md) for more details. Please note that the models are not included in the docker image, so you need to download the models and put them in the `--model` path.
+
+The `vllm-proxy` and `vllm` services is deployed inside dstack CVM of TEE environment. Before launch the CVM, please make sure the `Local KMS` is running, which privide the essential keys for the CVM to be properly initialized. The Local KMS can be launched by following commands:
+
+```bash
+cd Private-ML-SDK/meta-dstack-nvidia/dstack/key-provider-build/
+./run.sh
+```
 
 ## E2E Example
 
