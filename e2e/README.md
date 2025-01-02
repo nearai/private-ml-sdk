@@ -6,6 +6,8 @@ The VLLM Proxy wraps the VLLM service and provides a simple interface for obtain
 
 Following E2E example is designed to demonstrate how to use the VLLM Proxy and full steps of the attestation process.
 
+Also, for the deployment, the vllm service can be deployed with `docker-compose.yml` in the `vllm-proxy/docker` directory, which refers to the [README.md](../vllm-proxy/README.md) for more details. Please note that the models are not included in the docker image, so you need to download the models and put them in the `--model` path.
+
 ## E2E Example
 
 The `e2e/e2e.py` script is designed to demonstrate the interaction with the VLLM service. Below is a detailed step-by-step guide on how to use this script effectively.
