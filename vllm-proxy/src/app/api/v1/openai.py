@@ -9,6 +9,7 @@ from cachetools import TTLCache
 from app.quote.quote import quote
 from app.api.response.response import ok, error
 from app.logger import log
+from app.api.helper.auth import verify_authorization_header
 
 router = APIRouter(tags=["openai"])
 
@@ -69,7 +70,7 @@ async def stream_vllm_response(request_body: bytes):
 
 
 # Get attestation report of intel quote and nvidia payload
-@router.get("/attestation/report")
+@router.get("/attestation/report", dependencies=[Depends(verify_authorization_header)])
 async def attestation_report(request: Request):
     return dict(
         signing_address=quote.signing_address,
@@ -79,7 +80,7 @@ async def attestation_report(request: Request):
 
 
 # VLLM Chat completions
-@router.post("/chat/completions")
+@router.post("/chat/completions", dependencies=[Depends(verify_authorization_header)])
 async def chat_completions(request: Request):
     # Get the JSON body from the incoming request
     request_body = await request.body()
@@ -91,7 +92,7 @@ async def chat_completions(request: Request):
 
 
 # Get signature for chat_id of chat history
-@router.get("/signature/{chat_id}")
+@router.get("/signature/{chat_id}", dependencies=[Depends(verify_authorization_header)])
 async def signature(request: Request, chat_id: str):
     if chat_id not in cache:
         return error("Chat id not found or expired", "chat_id_not_found")

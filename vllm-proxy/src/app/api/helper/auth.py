@@ -1,3 +1,5 @@
+import os
+
 from fastapi import Header, HTTPException
 
 TOKEN = os.getenv("TOKEN")
