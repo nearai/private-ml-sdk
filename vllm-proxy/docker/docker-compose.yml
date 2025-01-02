@@ -8,6 +8,7 @@ x-common: &common-config
   runtime: nvidia
   environment:
     - NVIDIA_VISIBLE_DEVICES=all
+    - TOKEN=<YOUR_TOKEN>
 
 services:
   vllm-proxy:
@@ -22,7 +23,7 @@ services:
 
   vllm:
     <<: *common-config
-    image: vllm/vllm-openai:v0.5.4
+    image: vllm/vllm-openai:v0.6.5
     container_name: vllm
     ports:
       - "8001:8000"
