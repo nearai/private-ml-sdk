@@ -94,7 +94,7 @@ cat <<EOF > ${OUTPUT_DIR}/metadata.json
 {
     "bios": "ovmf.fd",
     "kernel": "bzImage",
-    "cmdline": "console=ttyS0 init=/init dstack.fde=1 dstack.rootfs_hash=$ROOTFS_HASH panic=1 systemd.unified_cgroup_hierarchy=0",
+    "cmdline": "console=ttyS0 init=/init panic=1 systemd.unified_cgroup_hierarchy=0 pnpacpi=off dstack.fde=1 dstack.rootfs_hash=$ROOTFS_HASH",
     "initrd": "initramfs.cpio.gz",
     "rootfs": "rootfs.iso",
     "rootfs_hash": "$ROOTFS_HASH",
