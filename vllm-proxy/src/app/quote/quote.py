@@ -10,8 +10,6 @@ from http.client import HTTPConnection
 from dstack_sdk import TappdClient
 from verifier import cc_admin
 
-from app.logger import log
-
 
 class Quote:
     def __init__(self):
@@ -74,3 +72,12 @@ class Quote:
 
 quote = Quote()
 quote.init()
+
+if __name__ == "__main__":
+    print(
+        dict(
+            signing_address=quote.signing_address,
+            intel_quote=quote.intel_quote,
+            nvidia_payload=quote.nvidia_payload,
+        )
+    )
