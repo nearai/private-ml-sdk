@@ -125,14 +125,16 @@ build_cfg() {
     # kms
     cat <<EOF > kms.toml
 log_level = "info"
+
+[rpc]
 address = "127.0.0.1"
 port = $KMS_RPC_LISTEN_PORT
 
-[tls]
+[rpc.tls]
 key = "$CERTS_DIR/kms-rpc.key"
 certs = "$CERTS_DIR/kms-rpc.cert"
 
-[tls.mutual]
+[rpc.tls.mutual]
 ca_certs = "$CERTS_DIR/tmp-ca.cert"
 mandatory = false
 
@@ -140,7 +142,6 @@ mandatory = false
 root_ca_cert = "$CERTS_DIR/root-ca.cert"
 root_ca_key = "$CERTS_DIR/root-ca.key"
 subject_postfix = ".phala"
-upgrade_registry_dir = "$KMS_UPGRADE_REGISTRY_DIR"
 cert_log_dir = "$KMS_CERT_LOG_DIR"
 
 [core.allowed_mr]
