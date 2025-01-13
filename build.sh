@@ -110,12 +110,6 @@ build_guest() {
     make -C $META_DIR dist DIST_DIR=$IMAGES_DIR BB_BUILD_DIR=${BBPATH}
 }
 
-# Step 3: make certs
-build_certs() {
-    echo "Building certs"
-    make -C $DSTACK_DIR certs DOMAIN=$BASE_DOMAIN TO=$CERTS_DIR
-}
-
 # Step 4: generate config files
 
 build_cfg() {
@@ -141,15 +135,19 @@ mandatory = false
 [core]
 root_ca_cert = "$CERTS_DIR/root-ca.cert"
 root_ca_key = "$CERTS_DIR/root-ca.key"
-subject_postfix = ".phala"
-cert_log_dir = "$KMS_CERT_LOG_DIR"
+tmp_ca_cert = "$CERTS_DIR/tmp-ca.cert"
+tmp_ca_key = "$CERTS_DIR/tmp-ca.key"
+rpc_cert = "$CERTS_DIR/rpc.cert"
+rpc_key = "$CERTS_DIR/rpc.key"
+k256_key = "$CERTS_DIR/root-k256.key"
 
-[core.allowed_mr]
-allow_all = true
-mrtd = []
-rtmr0 = []
-rtmr1 = []
-rtmr2 = []
+[core.auth_api]
+type = "dev"
+
+[core.onboard]
+quote_enabled = false
+address = "127.0.0.1"
+port = $KMS_RPC_LISTEN_PORT
 EOF
 
     # tproxy
@@ -165,6 +163,9 @@ certs = "$CERTS_DIR/tproxy-rpc.cert"
 [tls.mutual]
 ca_certs = "$CERTS_DIR/root-ca.cert"
 mandatory = false
+
+[core]
+kms_url = "https://localhost:$KMS_RPC_LISTEN_PORT"
 
 [core.certbot]
 workdir = "$CERBOT_WORKDIR"
@@ -198,9 +199,6 @@ run_path = "$RUN_DIR/vm"
 kms_url = "https://localhost:$KMS_RPC_LISTEN_PORT"
 
 [cvm]
-ca_cert = "$CERTS_DIR/root-ca.cert"
-tmp_ca_cert = "$CERTS_DIR/tmp-ca.cert"
-tmp_ca_key = "$CERTS_DIR/tmp-ca.key"
 kms_url = "https://kms.$BASE_DOMAIN:$KMS_RPC_LISTEN_PORT"
 tproxy_url = "https://tproxy.$BASE_DOMAIN:$TPROXY_RPC_LISTEN_PORT"
 pccs_url = "$TEEPOD_PCCS_URL"
@@ -286,7 +284,6 @@ case $ACTION in
         ;;
     certs)
         require_config
-        build_certs
         ;;
     wg)
         require_config
@@ -297,7 +294,6 @@ case $ACTION in
         require_config
         build_host
         build_guest
-        build_certs
         build_cfg
         build_wg
         ;;

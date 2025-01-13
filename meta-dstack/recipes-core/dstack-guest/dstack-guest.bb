@@ -14,6 +14,8 @@ SRCREV = "${DSTACK_SRC_REV}"
 
 S = "${WORKDIR}/${SRC_DIR}"
 
+RDEPENDS:${PN} += "bash"
+
 DSTACK_SERVICES = "tappd.service tboot.service app-compose.service wg-checker.service"
 SYSTEMD_PACKAGES = "${@bb.utils.contains('DISTRO_FEATURES','systemd','${PN}','',d)}"
 SYSTEMD_SERVICE:${PN} = "${@bb.utils.contains('DISTRO_FEATURES','systemd','${DSTACK_SERVICES}','',d)}"
