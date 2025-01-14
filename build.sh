@@ -51,7 +51,6 @@ TEEPOD_CID_POOL_SIZE=1000
 TEEPOD_PORT_MAPPING_ENABLED=false
 # Host API configuration, type of uint32
 TEEPOD_VSOCK_LISTEN_PORT=9080
-TEEPOD_PCCS_URL=https://10.0.2.2:8081/sgx/certification/v4/
 
 KMS_RPC_LISTEN_PORT=9043
 TPROXY_RPC_LISTEN_PORT=9010
@@ -125,8 +124,8 @@ address = "127.0.0.1"
 port = $KMS_RPC_LISTEN_PORT
 
 [rpc.tls]
-key = "$CERTS_DIR/kms-rpc.key"
-certs = "$CERTS_DIR/kms-rpc.cert"
+key = "$CERTS_DIR/rpc.key"
+certs = "$CERTS_DIR/rpc.cert"
 
 [rpc.tls.mutual]
 ca_certs = "$CERTS_DIR/tmp-ca.cert"
@@ -148,6 +147,7 @@ type = "dev"
 quote_enabled = false
 address = "127.0.0.1"
 port = $KMS_RPC_LISTEN_PORT
+auto_bootstrap_domain = "kms.$BASE_DOMAIN"
 EOF
 
     # tproxy
@@ -161,11 +161,12 @@ key = "$CERTS_DIR/tproxy-rpc.key"
 certs = "$CERTS_DIR/tproxy-rpc.cert"
 
 [tls.mutual]
-ca_certs = "$CERTS_DIR/root-ca.cert"
+ca_certs = "$CERTS_DIR/tproxy-ca.cert"
 mandatory = false
 
 [core]
 kms_url = "https://localhost:$KMS_RPC_LISTEN_PORT"
+gen_certs_for = "tproxy.$BASE_DOMAIN"
 
 [core.certbot]
 workdir = "$CERBOT_WORKDIR"
@@ -201,7 +202,6 @@ kms_url = "https://localhost:$KMS_RPC_LISTEN_PORT"
 [cvm]
 kms_url = "https://kms.$BASE_DOMAIN:$KMS_RPC_LISTEN_PORT"
 tproxy_url = "https://tproxy.$BASE_DOMAIN:$TPROXY_RPC_LISTEN_PORT"
-pccs_url = "$TEEPOD_PCCS_URL"
 cid_start = $TEEPOD_CID_POOL_START
 cid_pool_size = $TEEPOD_CID_POOL_SIZE
 [cvm.port_mapping]
