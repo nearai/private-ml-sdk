@@ -11,7 +11,7 @@ Also, for the deployment, the vllm service can be deployed with `docker-compose.
 The `vllm-proxy` and `vllm` services is deployed inside dstack CVM of TEE environment. Before launch the CVM, please make sure the `Local KMS` is running, which privide the essential keys for the CVM to be properly initialized. The Local KMS can be launched by following commands:
 
 ```bash
-cd Private-ML-SDK/meta-dstack-nvidia/dstack/key-provider-build/
+cd private-ml-sdk/meta-dstack-nvidia/dstack/key-provider-build/
 ./run.sh
 ```
 
