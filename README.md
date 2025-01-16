@@ -86,10 +86,9 @@ dstack lsgpu
 
 # Choose one or more GPU IDs and run the following command to create a CVM instance
 dstack new app.yaml -o my-gpu-cvm \
-    --gpu 18:00.0 \
-    --image images/dstack-nvidia-dev-0.3.0 \
+    --gpu 19:00.0 \
+    --image images/dstack-nvidia-dev-0.3.3 \
     -c 2 -m 4G -d 100G \
-    --no-fde \
     --port tcp:10022:22 \
     --port tcp:8888:8888
 
