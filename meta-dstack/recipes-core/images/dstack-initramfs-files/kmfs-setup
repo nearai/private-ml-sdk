@@ -19,6 +19,7 @@ HOST_SHARED=/mnt/host-shared
 
 panic() {
     echo "$1"
+    sleep 1
     exit 1
 }
 
