@@ -295,7 +295,7 @@ class DStackManager:
             logger.error(f"Failed to setup instance: {str(e)}")
             raise
 
-    def run_instance(self, vm_dir: str, host_port: int, memory: Optional[str] = None, vcpus: Optional[int] = None, imgdir: Optional[str] = None) -> None:
+    def run_instance(self, vm_dir: str, host_port: int, memory: Optional[str] = None, vcpus: Optional[int] = None, imgdir: Optional[str] = None, pin_numa: bool = False, hugepage: bool = False) -> None:
         """Run a VM instance from the specified directory.
 
         Args:
@@ -395,6 +395,16 @@ class DStackManager:
         # Add kernel command line
         cmd.extend(['-append', img_metadata['cmdline']])
 
+        if pin_numa and len(gpus) == 1:
+            numa_node = subprocess.run(['cat', f'/sys/bus/pci/devices/0000:{gpus[0]}/numa_node'], capture_output=True, text=True).stdout.strip()
+            cpus = subprocess.run(['cat', '/sys/devices/system/node/node{numa_node}/cpulist'], capture_output=True, text=True).stdout.strip()
+            cmd = ['taskset', '-c', cpus] + cmd
+            if hugepage:
+                cmd.extend([
+                    '-numa', f'node,nodeid=0,cpus=0-{vcpu_count-1},memdev=mem0',
+                    '-object', f'memory-backend-file,id=mem0,size={mem},mem-path=/dev/hugepages,share=on,prealloc=yes,host-nodes={numa_node},policy=bind',
+                ])
+
         print(" ".join(cmd))
         # Run the command
         try:
@@ -441,6 +451,8 @@ def main():
     start_parser.add_argument('-c', '--vcpus', type=int, help='Number of virtual CPUs')
     start_parser.add_argument('--imgdir', type=str, help='The image directory')
     start_parser.add_argument('--kp-port', type=int, default=3443, help='The key provider listening port')
+    start_parser.add_argument('--pin-numa', type=bool, default=False, help='Pin the guest to given NUMA')
+    start_parser.add_argument('--hugepage', type=bool, default=False, help='Enable pre-allocate on hugepage. Must also --pin-numa')
 
     # List Gpus command
     subparsers.add_parser('lsgpu', help='List available GPUs')
@@ -457,7 +469,7 @@ def main():
         print(f"Starting HTTP server on localhost:{host_port}")
         thread = threading.Thread(target=api.serve_forever, daemon=True)
         thread.start()
-        manager.run_instance(args.dir, host_port, memory=args.memory, vcpus=args.vcpus, imgdir=args.imgdir)
+        manager.run_instance(args.dir, host_port, memory=args.memory, vcpus=args.vcpus, imgdir=args.imgdir, pin_numa=args.pin_numa, hugepage=args.hugepage)
     elif args.command == 'lsgpu':
         list_available_gpus()
     else:
