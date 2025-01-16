@@ -40,7 +40,8 @@ require_config() {
 # base domain of kms rpc and tproxy rpc
 # 1022.kvin.wang resolves to 10.0.2.2 which is host ip at the
 # cvm point of view
-BASE_DOMAIN=1022.kvin.wang
+KMS_DOMAIN=kms.1022.kvin.wang
+TPROXY_DOMAIN=tproxy.1022.kvin.wang
 
 TEEPOD_RPC_LISTEN_PORT=9080
 # CIDs allocated to VMs start from this number of type unsigned int32
@@ -125,20 +126,14 @@ port = $KMS_RPC_LISTEN_PORT
 
 [rpc.tls]
 key = "$CERTS_DIR/rpc.key"
-certs = "$CERTS_DIR/rpc.cert"
+certs = "$CERTS_DIR/rpc.crt"
 
 [rpc.tls.mutual]
-ca_certs = "$CERTS_DIR/tmp-ca.cert"
+ca_certs = "$CERTS_DIR/tmp-ca.crt"
 mandatory = false
 
 [core]
-root_ca_cert = "$CERTS_DIR/root-ca.cert"
-root_ca_key = "$CERTS_DIR/root-ca.key"
-tmp_ca_cert = "$CERTS_DIR/tmp-ca.cert"
-tmp_ca_key = "$CERTS_DIR/tmp-ca.key"
-rpc_cert = "$CERTS_DIR/rpc.cert"
-rpc_key = "$CERTS_DIR/rpc.key"
-k256_key = "$CERTS_DIR/root-k256.key"
+cert_dir = "$CERTS_DIR"
 
 [core.auth_api]
 type = "dev"
@@ -147,7 +142,7 @@ type = "dev"
 quote_enabled = false
 address = "127.0.0.1"
 port = $KMS_RPC_LISTEN_PORT
-auto_bootstrap_domain = "kms.$BASE_DOMAIN"
+auto_bootstrap_domain = "$KMS_DOMAIN"
 EOF
 
     # tproxy
@@ -166,7 +161,7 @@ mandatory = false
 
 [core]
 kms_url = "https://localhost:$KMS_RPC_LISTEN_PORT"
-gen_certs_for = "tproxy.$BASE_DOMAIN"
+tls_domain = "$TPROXY_DOMAIN"
 
 [core.certbot]
 workdir = "$CERBOT_WORKDIR"
@@ -200,8 +195,8 @@ run_path = "$RUN_DIR/vm"
 kms_url = "https://localhost:$KMS_RPC_LISTEN_PORT"
 
 [cvm]
-kms_url = "https://kms.$BASE_DOMAIN:$KMS_RPC_LISTEN_PORT"
-tproxy_url = "https://tproxy.$BASE_DOMAIN:$TPROXY_RPC_LISTEN_PORT"
+kms_url = "https://$KMS_DOMAIN:$KMS_RPC_LISTEN_PORT"
+tproxy_url = "https://$TPROXY_DOMAIN:$TPROXY_RPC_LISTEN_PORT"
 cid_start = $TEEPOD_CID_POOL_START
 cid_pool_size = $TEEPOD_CID_POOL_SIZE
 [cvm.port_mapping]
