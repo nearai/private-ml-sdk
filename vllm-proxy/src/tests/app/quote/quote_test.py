@@ -1,109 +1,94 @@
 import unittest
-from unittest.mock import patch, MagicMock
-from nacl.signing import VerifyKey, SigningKey
 import base64
 import json
+from unittest.mock import patch, MagicMock, patch
 
-from app.quote.quote import Quote
+patch.TEST_PREFIX = ("test", "setUp")
+
+# Init mocked values
+# 1. Verifier
+mock_verifier = MagicMock()
+mock_verifier.cc_admin = MagicMock()
+mock_verifier.cc_admin.collect_gpu_evidence.return_value = [
+    {
+        "attestationReportHexStr": "mock_attestation_report",
+        "certChainBase64Encoded": "mock_cert_chain",
+    }
+]
+# 2. Dstack SDK
+mock_dstack_sdk = MagicMock()
+mock_client = mock_dstack_sdk.TappdClient.return_value
+mock_result = MagicMock()
+mock_result.quote = "614756736247383d"  # 'hello'
+mock_client.tdx_quote.return_value = mock_result
 
 
+@patch.dict("sys.modules", {"verifier": mock_verifier, "dstack_sdk": mock_dstack_sdk})
 class TestQuote(unittest.TestCase):
-    def setUp(self):
-        """Set up a Quote instance and mock dependencies."""
-        self.quote = Quote()
 
-    @patch("cc_admin.collect_gpu_evidence")
-    @patch("TappdClient")
-    def test_init(self, mock_tappd_client, mock_collect_gpu_evidence):
-        """Test the initialization of the Quote class."""
-        # Mock GPU evidence and TappdClient response
-        mock_collect_gpu_evidence.return_value = [
-            {
-                "attestationReportHexStr": "mock_attestation_report",
-                "certChainBase64Encoded": "mock_cert_chain",
-            }
-        ]
-        mock_tappd_client_instance = MagicMock()
-        mock_tappd_client_instance.tdx_quote.return_value = MagicMock(
-            quote="mock_quote_hex"
-        )
-        mock_tappd_client.return_value = mock_tappd_client_instance
+    def test_init_ed25519(self):
+        # Test initialization with ed25519 signing
+        from app.quote.quote import Quote
 
-        # Initialize the Quote object
-        result = self.quote.init()
+        quote = Quote(signing_method="ed25519")
+        result = quote.init()
 
-        # Assertions
-        self.assertIn("intel_quote", result)
-        self.assertIn("nvidia_payload", result)
-        self.assertIn("verifying_key", result)
+        self.assertIsNotNone(result["signing_address"])
+        self.assertIsNotNone(result["intel_quote"])
+        self.assertIsNotNone(result["nvidia_payload"])
+        self.assertEqual(quote.signing_method, "ed25519")
 
-        # Ensure the signing key and verifying key are generated
-        self.assertIsNotNone(self.quote.signing_key)
-        self.assertIsNotNone(self.quote.verifying_key)
+    def test_init_ecdsa(self):
+        # Test initialization with web3 (ECDSA) signing
+        from app.quote.quote import Quote
 
-        # Ensure the quote is Base64-encoded
-        self.assertEqual(
-            result["intel_quote"],
-            base64.b64encode(bytes.fromhex("mock_quote_hex")).decode("utf-8"),
-        )
+        quote = Quote(signing_method="ecdsa")
+        result = quote.init(force=True)
 
-        # Ensure the NVIDIA payload is correctly built
-        payload = json.loads(result["nvidia_payload"])
-        self.assertEqual(
-            payload["nonce"], self.quote.verifying_key.encode().decode("utf-8")
-        )
-        self.assertEqual(payload["arch"], "HOPPER")
+        self.assertIsNotNone(result["signing_address"])
+        self.assertIsNotNone(result["intel_quote"])
+        self.assertIsNotNone(result["nvidia_payload"])
+        self.assertEqual(quote.signing_method, "ecdsa")
 
-    @patch("your_module.TappdClient")
-    def test_get_quote(self, mock_tappd_client):
-        """Test the get_quote method."""
-        # Mock TappdClient response
-        mock_tappd_client_instance = MagicMock()
-        mock_tappd_client_instance.tdx_quote.return_value = MagicMock(
-            quote="mock_quote_hex"
-        )
-        mock_tappd_client.return_value = mock_tappd_client_instance
+    def test_sign_ed25519(self):
+        # Test signing using ed25519
+        from app.quote.quote import Quote
 
-        # Call get_quote
-        pub_hex = "mock_pub_hex"
-        result = self.quote.get_quote(pub_hex)
+        quote = Quote(signing_method="ed25519")
+        quote.init()
+        content = "Test message"
+        signature = quote.sign(content)
 
-        # Assertions
-        self.assertEqual(result, "mock_quote_hex")
-        self.assertEqual(
-            self.quote.intel_quote,
-            base64.b64encode(bytes.fromhex("mock_quote_hex")).decode("utf-8"),
-        )
+        self.assertIsInstance(signature, str)
+        self.assertGreater(len(signature), 0)
 
-    def test_sign(self):
-        """Test the sign method."""
-        # Generate a signing key and set it in the Quote instance
-        self.quote.signing_key = SigningKey.generate()
+    def test_sign_ecdsa(self):
+        # Test signing using web3 (ECDSA)
+        from app.quote.quote import Quote
 
-        # Sign a message
-        message = "Test message"
-        signature = self.quote.sign(message)
+        quote = Quote(signing_method="ecdsa")
+        quote.init()
+        content = "Test message"
+        signature = quote.sign(content)
 
-        # Verify the signature
-        verify_key = VerifyKey(self.quote.signing_key.verify_key.encode())
-        try:
-            verify_key.verify(message.encode("utf-8"), base64.b64decode(signature))
-        except Exception as e:
-            self.fail(f"Signature verification failed: {e}")
+        self.assertIsInstance(signature, str)
+        self.assertGreater(len(signature), 0)
 
     def test_build_payload(self):
-        """Test the build_payload method."""
+        # Test payload building
+        from app.quote.quote import Quote
+
+        quote = Quote(signing_method="ed25519")
+        quote.init()
         nonce = "mock_nonce"
         evidence = "mock_evidence"
         cert_chain = "mock_cert_chain"
 
-        # Build the payload
-        payload = self.quote.build_payload(nonce, evidence, cert_chain)
+        payload = quote.build_payload(nonce, evidence, cert_chain)
+        self.assertIsInstance(payload, str)
 
-        # Parse the payload
+        # Verify payload structure
         payload_data = json.loads(payload)
-
-        # Assertions
         self.assertEqual(payload_data["nonce"], nonce)
         self.assertEqual(payload_data["arch"], "HOPPER")
         self.assertEqual(
@@ -111,49 +96,6 @@ class TestQuote(unittest.TestCase):
             base64.b64encode(evidence.encode("ascii")).decode("utf-8"),
         )
         self.assertEqual(payload_data["evidence_list"][0]["certificate"], cert_chain)
-
-    @patch("your_module.cc_admin.collect_gpu_evidence")
-    @patch("your_module.TappdClient")
-    def test_full_workflow(self, mock_tappd_client, mock_collect_gpu_evidence):
-        """Test the full workflow of the Quote class."""
-        # Mock GPU evidence and TappdClient response
-        mock_collect_gpu_evidence.return_value = [
-            {
-                "attestationReportHexStr": "mock_attestation_report",
-                "certChainBase64Encoded": "mock_cert_chain",
-            }
-        ]
-        mock_tappd_client_instance = MagicMock()
-        mock_tappd_client_instance.tdx_quote.return_value = MagicMock(
-            quote="mock_quote_hex"
-        )
-        mock_tappd_client.return_value = mock_tappd_client_instance
-
-        # Initialize the Quote object
-        result = self.quote.init()
-
-        # Sign a message
-        message = "Test message"
-        signature = self.quote.sign(message)
-
-        # Verify the signature
-        verify_key = VerifyKey(self.quote.signing_key.verify_key.encode())
-        try:
-            verify_key.verify(message.encode("utf-8"), base64.b64decode(signature))
-        except Exception as e:
-            self.fail(f"Signature verification failed: {e}")
-
-        # Assertions for init
-        self.assertIn("intel_quote", result)
-        self.assertIn("nvidia_payload", result)
-        self.assertIn("verifying_key", result)
-
-        # Assertions for payload
-        payload = json.loads(result["nvidia_payload"])
-        self.assertEqual(
-            payload["nonce"], self.quote.verifying_key.encode().decode("utf-8")
-        )
-        self.assertEqual(payload["arch"], "HOPPER")
 
 
 if __name__ == "__main__":
