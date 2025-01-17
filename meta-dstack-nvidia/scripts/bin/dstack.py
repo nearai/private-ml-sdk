@@ -397,7 +397,7 @@ class DStackManager:
 
         if pin_numa and len(gpus) == 1:
             numa_node = subprocess.run(['cat', f'/sys/bus/pci/devices/0000:{gpus[0]}/numa_node'], capture_output=True, text=True).stdout.strip()
-            cpus = subprocess.run(['cat', '/sys/devices/system/node/node{numa_node}/cpulist'], capture_output=True, text=True).stdout.strip()
+            cpus = subprocess.run(['cat', f'/sys/devices/system/node/node{numa_node}/cpulist'], capture_output=True, text=True).stdout.strip()
             cmd = ['taskset', '-c', cpus] + cmd
             if hugepage:
                 cmd.extend([
