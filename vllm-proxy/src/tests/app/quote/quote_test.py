@@ -5,6 +5,9 @@ from unittest.mock import patch, MagicMock, patch
 
 patch.TEST_PREFIX = ("test", "setUp")
 
+ED25519 = "ed25519"
+ECDSA = "ecdsa"
+
 # Init mocked values
 # 1. Verifier
 mock_verifier = MagicMock()
@@ -30,31 +33,31 @@ class TestQuote(unittest.TestCase):
         # Test initialization with ed25519 signing
         from app.quote.quote import Quote
 
-        quote = Quote(signing_method="ed25519")
+        quote = Quote(signing_method=ED25519)
         result = quote.init()
 
         self.assertIsNotNone(result["signing_address"])
         self.assertIsNotNone(result["intel_quote"])
         self.assertIsNotNone(result["nvidia_payload"])
-        self.assertEqual(quote.signing_method, "ed25519")
+        self.assertEqual(quote.signing_method, ED25519)
 
     def test_init_ecdsa(self):
         # Test initialization with web3 (ECDSA) signing
         from app.quote.quote import Quote
 
-        quote = Quote(signing_method="ecdsa")
+        quote = Quote(signing_method=ECDSA)
         result = quote.init(force=True)
 
         self.assertIsNotNone(result["signing_address"])
         self.assertIsNotNone(result["intel_quote"])
         self.assertIsNotNone(result["nvidia_payload"])
-        self.assertEqual(quote.signing_method, "ecdsa")
+        self.assertEqual(quote.signing_method, ECDSA)
 
     def test_sign_ed25519(self):
         # Test signing using ed25519
         from app.quote.quote import Quote
 
-        quote = Quote(signing_method="ed25519")
+        quote = Quote(signing_method=ED25519)
         quote.init()
         content = "Test message"
         signature = quote.sign(content)
@@ -66,7 +69,7 @@ class TestQuote(unittest.TestCase):
         # Test signing using web3 (ECDSA)
         from app.quote.quote import Quote
 
-        quote = Quote(signing_method="ecdsa")
+        quote = Quote(signing_method=ECDSA)
         quote.init()
         content = "Test message"
         signature = quote.sign(content)
@@ -74,11 +77,41 @@ class TestQuote(unittest.TestCase):
         self.assertIsInstance(signature, str)
         self.assertGreater(len(signature), 0)
 
+    def test_sign_ed25519(self):
+        # Initialize Quote with ED25519
+        from app.quote.quote import Quote
+
+        quote = Quote(ED25519)
+        quote.init()
+
+        # Test signing
+        content = "test_message"
+        signature = quote.sign(content)
+
+        # Assertions
+        self.assertIsInstance(signature, str)
+        self.assertTrue(len(signature) > 0)
+
+    def test_sign_ecdsa(self):
+        # Initialize Quote with ECDSA
+        from app.quote.quote import Quote
+
+        quote = Quote(ECDSA)
+        quote.init()
+
+        # Test signing
+        content = "test_message"
+        signature = quote.sign(content)
+
+        # Assertions
+        self.assertIsInstance(signature, str)
+        self.assertTrue(len(signature) > 0)
+
     def test_build_payload(self):
         # Test payload building
         from app.quote.quote import Quote
 
-        quote = Quote(signing_method="ed25519")
+        quote = Quote(signing_method=ED25519)
         quote.init()
         nonce = "mock_nonce"
         evidence = "mock_evidence"
@@ -96,6 +129,22 @@ class TestQuote(unittest.TestCase):
             base64.b64encode(evidence.encode("ascii")).decode("utf-8"),
         )
         self.assertEqual(payload_data["evidence_list"][0]["certificate"], cert_chain)
+
+    def test_init_unsupported_signing_method(self):
+        # Test unsupported signing method
+        from app.quote.quote import Quote
+
+        with self.assertRaises(ValueError):
+            quote = Quote("unsupported_method")
+            quote.init()
+
+    def test_sign_unsupported_signing_method(self):
+        # Test unsupported signing method for signing
+        from app.quote.quote import Quote
+
+        quote = Quote("unsupported_method")
+        with self.assertRaises(ValueError):
+            quote.sign("test_message")
 
 
 if __name__ == "__main__":
