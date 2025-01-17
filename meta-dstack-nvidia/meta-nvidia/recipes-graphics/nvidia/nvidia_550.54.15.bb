@@ -5,10 +5,10 @@ LIC_FILES_CHKSUM = "file://../LICENSE;md5=01c5e23f445259a6d1b4867efec45d22"
 NVIDIA_ARCHIVE_NAME = "NVIDIA-Linux-${TARGET_ARCH}-${PV}"
 NVIDIA_SRC = "${WORKDIR}/${NVIDIA_ARCHIVE_NAME}"
 SRC_URI = " \
-	https://us.download.nvidia.com/XFree86/Linux-x86_64/${PV}/${NVIDIA_ARCHIVE_NAME}.run \
+	https://us.download.nvidia.com/tesla/${PV}/${NVIDIA_ARCHIVE_NAME}.run \
 "
-SRC_URI[md5sum] = "a8c3ae0076f11e864745fac74bfdb01f"
-SRC_URI[sha256sum] = "112047f5644005690e762141a55b422195ca6b90ef4024a47bad4c9e818788a9"
+SRC_URI[md5sum] = "d41045e47d511b9d0bd0c365118bcbbb"
+SRC_URI[sha256sum] = "2e859ae5f912a9a47aaa9b2d40a94a14f6f486b5d3b67c0ddf8b72c1c9650385"
 
 do_unpack() {
 	chmod +x ${DL_DIR}/${NVIDIA_ARCHIVE_NAME}.run
