@@ -66,7 +66,7 @@ Before launching the CVM, ensure that the Local KMS is operational, as it provid
 The Local KMS service can be launched by following commands:
 
 ```bash
-cd Private-ML-SDK/meta-dstack-nvidia/dstack/key-provider-build/
+cd private-ml-sdk/meta-dstack-nvidia/dstack/key-provider-build/
 ./run.sh
 ```
 
