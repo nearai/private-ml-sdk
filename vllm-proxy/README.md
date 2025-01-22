@@ -28,3 +28,10 @@ bash docker/build.sh
 cd docker
 docker compose up -d
 ```
+
+## Tests
+
+```bash
+cd src
+python -m unittest tests
+```
