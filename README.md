@@ -59,6 +59,17 @@ There are two image directories:
 - `dstack-nvidia-0.3.0/`: the production image without developer tools.
 - `dstack-nvidia-dev-0.3.0/`: the development image with developer tools, such as `sshd`, `strace`.
 
+### Run the Local KMS
+
+Before launching the CVM, ensure that the Local KMS is operational, as it provides the essential keys required for the proper initialization of the CVM. These keys are derived from the local TEE hardware environment.
+
+The Local KMS service can be launched by following commands:
+
+```bash
+cd Private-ML-SDK/meta-dstack-nvidia/dstack/key-provider-build/
+./run.sh
+```
+
 ### Run the TDX guest image
 
 This requires a TDX host machine with the TDX driver installed and Nvidia GPU what support GPU TEE installed.
@@ -86,6 +97,7 @@ dstack lsgpu
 
 # Choose one or more GPU IDs and run the following command to create a CVM instance
 dstack new app.yaml -o my-gpu-cvm \
+    --local-key-provider \
     --gpu 18:00.0 \
     --image images/dstack-nvidia-dev-0.3.0 \
     -c 2 -m 4G -d 100G \
