@@ -48,12 +48,12 @@ Prerequisites:
 Clone the repository and build the TDX guest image:
 
 ```
-git clone https://github.com/Phala-Network/Private-ML-SDK --recursive
-cd Private-ML-SDK/
+git clone https://github.com/nearai/private-ml-sdk --recursive
+cd private-ml-sdk/
 ./build.sh
 ```
 
-If everything goes well, you should see the images files in `Private-ML-SDK/images/`.
+If everything goes well, you should see the images files in `private-ml-sdk/images/`.
 
 There are two image directories:
 - `dstack-nvidia-0.3.0/`: the production image without developer tools.
@@ -76,7 +76,7 @@ This requires a TDX host machine with the TDX driver installed and Nvidia GPU wh
 
 ```
 # Add the scripts/bin directory to the PATH environment variable
-pushd Private-ML-SDK/meta-dstack-nvidia/scripts/bin
+pushd private-ml-sdk/meta-dstack-nvidia/scripts/bin
 PATH=$PATH:`pwd`
 popd
 
@@ -99,9 +99,8 @@ dstack lsgpu
 dstack new app.yaml -o my-gpu-cvm \
     --local-key-provider \
     --gpu 18:00.0 \
-    --image images/dstack-nvidia-dev-0.3.0 \
+    --image images/dstack-nvidia-dev-0.3.3 \
     -c 2 -m 4G -d 100G \
-    --no-fde \
     --port tcp:10022:22 \
     --port tcp:8888:8888
 
