@@ -61,7 +61,9 @@ There are two image directories:
 
 ### Run the Local KMS
 
-Before launch the CVM, please make sure the `Local KMS` is running, which privide the essential keys for the CVM to be properly initialized. The Local KMS can be launched by following commands:
+Before launching the CVM, ensure that the Local KMS is operational, as it provides the essential keys required for the proper initialization of the CVM. These keys are derived from the local TEE hardware environment.
+
+The Local KMS service can be launched by following commands:
 
 ```bash
 cd Private-ML-SDK/meta-dstack-nvidia/dstack/key-provider-build/
