@@ -3,7 +3,7 @@ import httpx
 
 from fastapi import APIRouter, Request, Header, HTTPException, Depends
 from hashlib import sha256
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 from cachetools import TTLCache
 
 from app.quote.quote import quote
@@ -14,6 +14,7 @@ from app.api.helper.auth import verify_authorization_header
 router = APIRouter(tags=["openai"])
 
 VLLM_URL = "http://vllm:8000/v1/chat/completions"
+TIMEOUT = 60 * 5
 
 # Cache for storing full request-response pairs (TTL of 5 minutes)
 cache = TTLCache(maxsize=1000, ttl=300)
@@ -40,7 +41,9 @@ async def stream_vllm_response(request_body: bytes):
     h = sha256()
     async with httpx.AsyncClient() as client:
         # Forward the request to the vllm backend
-        async with client.stream("POST", VLLM_URL, content=modified_request_body) as response:
+        async with client.stream(
+            "POST", VLLM_URL, content=modified_request_body
+        ) as response:
             # Check if the response status is OK
             if response.status_code != 200:
                 raise Exception(
@@ -69,6 +72,25 @@ async def stream_vllm_response(request_body: bytes):
         raise Exception("Chat id could not be extracted from the response")
 
 
+# Function to handle non-streaming responses
+async def non_stream_vllm_response(request_body: bytes):
+    request_sha256 = sha256(request_body).hexdigest()
+
+    # Modify the request body to use the correct model path and lowercase model name
+    request_json = json.loads(request_body)
+    request_json["model"] = "/mnt/models/" + request_json["model"].lower()
+    modified_request_body = json.dumps(request_json)
+
+    async with httpx.AsyncClient(
+        timeout=httpx.Timeout(TIMEOUT)
+    ) as client:  # Increase timeout to 60 seconds
+        # Forward the request to the vllm backend
+        response = await client.post(VLLM_URL, content=modified_request_body)
+        if response.status_code != 200:
+            raise Exception(f"Backend error: {response.status_code}, {response.text}")
+        return response.json()
+
+
 # Get attestation report of intel quote and nvidia payload
 @router.get("/attestation/report", dependencies=[Depends(verify_authorization_header)])
 async def attestation_report(request: Request):
@@ -84,11 +106,22 @@ async def attestation_report(request: Request):
 async def chat_completions(request: Request):
     # Get the JSON body from the incoming request
     request_body = await request.body()
+    request_json = json.loads(request_body)
 
-    # Create a streaming response
-    return StreamingResponse(
-        stream_vllm_response(request_body), media_type="text/event-stream"
-    )
+    # Check if the request is for streaming or non-streaming
+    is_stream = request_json.get(
+        "stream", True
+    )  # Default to streaming if not specified
+
+    if is_stream:
+        # Create a streaming response
+        return StreamingResponse(
+            stream_vllm_response(request_body), media_type="text/event-stream"
+        )
+    else:
+        # Handle non-streaming response
+        response_data = await non_stream_vllm_response(request_body)
+        return JSONResponse(content=response_data)
 
 
 # Get signature for chat_id of chat history
