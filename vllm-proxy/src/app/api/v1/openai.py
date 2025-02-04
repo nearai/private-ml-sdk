@@ -46,8 +46,10 @@ async def stream_vllm_response(request_body: bytes):
         ) as response:
             # Check if the response status is OK
             if response.status_code != 200:
-                raise Exception(
-                    f"Backend error: {response.status_code}, {await response.text()}"
+                error_content = await response.aread()
+                raise HTTPException(
+                    status_code=response.status_code,
+                    detail=error_content.decode('utf-8')
                 )
 
             # Stream the response content back to the client
@@ -87,7 +89,10 @@ async def non_stream_vllm_response(request_body: bytes):
         # Forward the request to the vllm backend
         response = await client.post(VLLM_URL, content=modified_request_body)
         if response.status_code != 200:
-            raise Exception(f"Backend error: {response.status_code}, {response.text}")
+            raise HTTPException(
+                status_code=response.status_code,
+                detail=response.text
+            )
         return response.json()
 
 
