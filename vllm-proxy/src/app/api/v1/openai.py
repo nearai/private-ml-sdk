@@ -39,7 +39,7 @@ async def stream_vllm_response(request_body: bytes):
 
     chat_id = None
     h = sha256()
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=httpx.Timeout(TIMEOUT)) as client:
         # Forward the request to the vllm backend
         async with client.stream(
             "POST", VLLM_URL, content=modified_request_body
