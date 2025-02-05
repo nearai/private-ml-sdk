@@ -61,22 +61,24 @@ async def stream_vllm_response(request_body: bytes):
         else:
             raise Exception("Chat id could not be extracted from the response")
 
-    async with httpx.AsyncClient(timeout=httpx.Timeout(TIMEOUT)) as client:
-        # Forward the request to the vllm backend
-        req = client.build_request("POST", VLLM_URL, content=modified_request_body)
-        response = await client.send(req, stream=True)
-        # If not 200, return the error response directly without streaming
-        if response.status_code != 200:
-            error_content = await response.aread()
-            return JSONResponse(
-                status_code=response.status_code,
-                content=json.loads(error_content)
-            )
-
-        return StreamingResponse(
-            generate_stream(response),
-            background=BackgroundTasks([response.aclose])
+    client = httpx.AsyncClient(timeout=httpx.Timeout(TIMEOUT))
+    # Forward the request to the vllm backend
+    req = client.build_request("POST", VLLM_URL, content=modified_request_body)
+    response = await client.send(req, stream=True)
+    # If not 200, return the error response directly without streaming
+    if response.status_code != 200:
+        error_content = await response.aread()
+        await response.aclose()
+        await client.aclose()
+        return JSONResponse(
+            status_code=response.status_code,
+            content=json.loads(error_content)
         )
+
+    return StreamingResponse(
+        generate_stream(response),
+        background=BackgroundTasks([response.aclose, client.aclose])
+    )
 
 # Function to handle non-streaming responses
 async def non_stream_vllm_response(request_body: bytes):
