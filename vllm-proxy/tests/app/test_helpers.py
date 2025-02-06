@@ -38,6 +38,7 @@ def setup_test_environment():
     setup_verifier_mock()
     setup_dstack_mock()
     os.environ["TOKEN"] = 'test_token'
+    os.environ["SIGNING_METHOD"] = 'ecdsa'
 
 # Constants for testing
 TEST_AUTH_HEADER = "Bearer test_token" 

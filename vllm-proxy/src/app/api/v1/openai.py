@@ -1,12 +1,13 @@
 import json
 import httpx
+import os
 
 from fastapi import APIRouter, Request, Header, HTTPException, Depends, BackgroundTasks
 from hashlib import sha256
 from fastapi.responses import StreamingResponse, JSONResponse
 from cachetools import TTLCache
 
-from app.quote.quote import quote
+from app.quote.quote import quote, ED25519, ECDSA
 from app.api.response.response import ok, error
 from app.logger import log
 from app.api.helper.auth import verify_authorization_header
@@ -135,9 +136,14 @@ async def chat_completions(request: Request):
 
 # Get signature for chat_id of chat history
 @router.get("/signature/{chat_id}", dependencies=[Depends(verify_authorization_header)])
-async def signature(request: Request, chat_id: str):
+async def signature(request: Request, chat_id: str, signing_algo: str = None):
     if chat_id not in cache:
         return error("Chat id not found or expired", "chat_id_not_found")
+
+    if signing_algo is None:
+        signing_algo = quote.signing_method
+    elif signing_algo not in [ED25519, ECDSA]:
+        return error("Invalid signing algorithm. Must be 'ed25519' or 'ecdsa'", "invalid_signing_algo")
 
     # Retrieve the cached request and response
     chat_data = cache[chat_id]
@@ -145,4 +151,5 @@ async def signature(request: Request, chat_id: str):
     return dict(
         text=chat_data,
         signature=signature,
+        signing_algo=signing_algo,
     )

@@ -16,6 +16,7 @@ setup_test_environment()
 # Now we can safely import app code
 from app.main import app
 from app.api.v1.openai import VLLM_URL
+from app.quote.quote import quote, ED25519, ECDSA
 
 client = TestClient(app)
 
@@ -135,4 +136,98 @@ async def test_stream_chat_completions_upstream_error(respx_mock):
     assert "error" in response_data
     assert response_data["error"]["message"] == "Invalid request parameters"
     assert response_data["error"]["type"] == "invalid_request_error"
+
+@pytest.mark.asyncio
+async def test_signature_default_algo():
+    # Setup test data
+    chat_id = "test-chat-123"
+    test_data = "test request:response data"
+    
+    # Only mock the cache, use real quote object
+    with patch('app.api.v1.openai.cache') as mock_cache:
+        # Setup mock cache
+        mock_cache.__contains__.return_value = True
+        mock_cache.__getitem__.return_value = test_data
+
+        # Make request
+        response = client.get(
+            f"/v1/signature/{chat_id}",
+            headers={"Authorization": TEST_AUTH_HEADER}
+        )
+
+        # Verify response
+        assert response.status_code == 200
+        response_data = response.json()
+        assert response_data["text"] == test_data
+        assert len(response_data["signature"]) > 0  # Real signature will have content
+        assert response_data["signing_algo"] == ECDSA
+
+@pytest.mark.asyncio
+async def test_signature_explicit_algo():
+    # Setup test data
+    chat_id = "test-chat-123"
+    test_data = "test request:response data"
+    
+    # Only mock the cache, use real quote object
+    with patch('app.api.v1.openai.cache') as mock_cache:
+        # Setup mock cache
+        mock_cache.__contains__.return_value = True
+        mock_cache.__getitem__.return_value = test_data
+
+        # Make request with explicit algorithm
+        explicit_algo = ECDSA if quote.signing_method == ED25519 else ED25519  # Use opposite of default
+        response = client.get(
+            f"/v1/signature/{chat_id}?signing_algo={explicit_algo}",
+            headers={"Authorization": TEST_AUTH_HEADER}
+        )
+
+        # Verify response
+        assert response.status_code == 200
+        response_data = response.json()
+        assert response_data["text"] == test_data
+        assert len(response_data["signature"]) > 0  # Real signature will have content
+        assert response_data["signing_algo"] == explicit_algo
+
+@pytest.mark.asyncio
+async def test_signature_invalid_algo():
+    chat_id = "test-chat-123"
+    
+    # Only mock the cache
+    with patch('app.api.v1.openai.cache') as mock_cache:
+        mock_cache.__contains__.return_value = True
+        mock_cache.__getitem__.return_value = "test data"
+    
+        # Make request with invalid algorithm
+        response = client.get(
+            f"/v1/signature/{chat_id}?signing_algo=invalid-algo",
+            headers={"Authorization": TEST_AUTH_HEADER}
+        )
+
+        # Verify error response
+        assert response.status_code == 200  # FastAPI converts errors to 200 with error content
+        response_data = response.json()
+        assert "error" in response_data
+        assert response_data["error"]["message"] == "Invalid signing algorithm. Must be 'ed25519' or 'ecdsa'"
+        assert response_data["error"]["type"] == "invalid_signing_algo"
+
+@pytest.mark.asyncio
+async def test_signature_chat_not_found():
+    chat_id = "nonexistent-chat"
+    
+    # Mock the cache to return False for contains check
+    with patch('app.api.v1.openai.cache') as mock_cache:
+        mock_cache.__contains__.return_value = False
+
+        # Make request
+        response = client.get(
+            f"/v1/signature/{chat_id}",
+            headers={"Authorization": TEST_AUTH_HEADER}
+        )
+
+        # Verify error response
+        assert response.status_code == 200  # FastAPI converts errors to 200 with error content
+        response_data = response.json()
+        assert "error" in response_data
+        assert response_data["error"]["message"] == "Chat id not found or expired"
+        assert response_data["error"]["type"] == "chat_id_not_found"
 
