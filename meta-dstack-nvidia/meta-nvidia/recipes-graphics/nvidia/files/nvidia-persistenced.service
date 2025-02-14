@@ -7,6 +7,7 @@ After=systemd-modules-load.service modprobe@.service
 [Service]
 Type=oneshot
 ExecStart=/usr/bin/env nvidia-persistenced --uvm-persistence-mode
+ExecStartPost=/usr/bin/nvidia-smi conf-compute -srs 1
 RemainAfterExit=yes
 
 [Install]
