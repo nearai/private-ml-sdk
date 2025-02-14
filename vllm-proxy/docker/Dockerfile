@@ -1,4 +1,5 @@
-FROM vllm/vllm-openai:v0.5.4 as base
+FROM python:3.11
+# local_gpu_verifier depens on lxml 4.9 which requires python version <=3.11
 
 WORKDIR /tmp
 
@@ -16,12 +17,8 @@ RUN poetry export -f requirements.txt --output requirements.txt --without-hashes
     && pip install --no-cache-dir --upgrade -r requirements.txt \
     && rm -rf requirements.txt
 
-FROM base as runtime
-
 WORKDIR /app
-
 COPY src ./
-
 EXPOSE 8000
 
 ENTRYPOINT ["./entrypoint.sh"]

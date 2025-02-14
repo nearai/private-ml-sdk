@@ -1,12 +1,13 @@
 import json
 import httpx
+import os
 
-from fastapi import APIRouter, Request, Header, HTTPException, Depends
+from fastapi import APIRouter, Request, Header, HTTPException, Depends, BackgroundTasks
 from hashlib import sha256
 from fastapi.responses import StreamingResponse, JSONResponse
 from cachetools import TTLCache
 
-from app.quote.quote import quote
+from app.quote.quote import quote, ED25519, ECDSA
 from app.api.response.response import ok, error
 from app.logger import log
 from app.api.helper.auth import verify_authorization_header
@@ -39,38 +40,46 @@ async def stream_vllm_response(request_body: bytes):
 
     chat_id = None
     h = sha256()
-    async with httpx.AsyncClient() as client:
-        # Forward the request to the vllm backend
-        async with client.stream(
-            "POST", VLLM_URL, content=modified_request_body
-        ) as response:
-            # Check if the response status is OK
-            if response.status_code != 200:
-                raise Exception(
-                    f"Backend error: {response.status_code}, {await response.text()}"
-                )
+    
+    async def generate_stream(response):
+        nonlocal chat_id, h
+        async for chunk in response.aiter_text():
+            h.update(chunk.encode())
+            # Extract the cache key (data.id) from the first chunk
+            if not chat_id:
+                try:
+                    data = chunk.strip("data: ").strip()
+                    chunk_data = json.loads(data)
+                    chat_id = chunk_data.get("id")
+                except Exception as e:
+                    raise Exception(f"Failed to parse the first chunk: {e}")
+            yield chunk
+        
+        response_sha256 = h.hexdigest()
+        # Cache the full request and response using the extracted cache key
+        if chat_id:
+            cache[chat_id] = f"{request_sha256}:{response_sha256}"
+        else:
+            raise Exception("Chat id could not be extracted from the response")
 
-            # Stream the response content back to the client
-            async for chunk in response.aiter_text():
-                h.update(chunk.encode())
-                # Extract the cache key (data.id) from the first chunk
-                if not chat_id:
-                    try:
-                        # Parse the first chunk as JSON to extract data.id
-                        chunk_data = json.loads(chunk.strip("data: ").strip())
-                        chat_id = chunk_data.get("id")
-                    except Exception as e:
-                        raise Exception(f"Failed to parse the first chunk: {e}")
+    client = httpx.AsyncClient(timeout=httpx.Timeout(TIMEOUT))
+    # Forward the request to the vllm backend
+    req = client.build_request("POST", VLLM_URL, content=modified_request_body)
+    response = await client.send(req, stream=True)
+    # If not 200, return the error response directly without streaming
+    if response.status_code != 200:
+        error_content = await response.aread()
+        await response.aclose()
+        await client.aclose()
+        return JSONResponse(
+            status_code=response.status_code,
+            content=json.loads(error_content)
+        )
 
-                yield chunk
-    response_sha256 = h.hexdigest()
-
-    # Cache the full request and response using the extracted cache key
-    if chat_id:
-        cache[chat_id] = f"{request_sha256}:{response_sha256}"
-    else:
-        raise Exception("Chat id could not be extracted from the response")
-
+    return StreamingResponse(
+        generate_stream(response),
+        background=BackgroundTasks([response.aclose, client.aclose])
+    )
 
 # Function to handle non-streaming responses
 async def non_stream_vllm_response(request_body: bytes):
@@ -87,7 +96,10 @@ async def non_stream_vllm_response(request_body: bytes):
         # Forward the request to the vllm backend
         response = await client.post(VLLM_URL, content=modified_request_body)
         if response.status_code != 200:
-            raise Exception(f"Backend error: {response.status_code}, {response.text}")
+            raise HTTPException(
+                status_code=response.status_code,
+                detail=response.text
+            )
         return response.json()
 
 
@@ -115,9 +127,7 @@ async def chat_completions(request: Request):
 
     if is_stream:
         # Create a streaming response
-        return StreamingResponse(
-            stream_vllm_response(request_body), media_type="text/event-stream"
-        )
+        return await stream_vllm_response(request_body)
     else:
         # Handle non-streaming response
         response_data = await non_stream_vllm_response(request_body)
@@ -126,9 +136,14 @@ async def chat_completions(request: Request):
 
 # Get signature for chat_id of chat history
 @router.get("/signature/{chat_id}", dependencies=[Depends(verify_authorization_header)])
-async def signature(request: Request, chat_id: str):
+async def signature(request: Request, chat_id: str, signing_algo: str = None):
     if chat_id not in cache:
         return error("Chat id not found or expired", "chat_id_not_found")
+
+    if signing_algo is None:
+        signing_algo = quote.signing_method
+    elif signing_algo not in [ED25519, ECDSA]:
+        return error("Invalid signing algorithm. Must be 'ed25519' or 'ecdsa'", "invalid_signing_algo")
 
     # Retrieve the cached request and response
     chat_data = cache[chat_id]
@@ -136,4 +151,5 @@ async def signature(request: Request, chat_id: str):
     return dict(
         text=chat_data,
         signature=signature,
+        signing_algo=signing_algo,
     )

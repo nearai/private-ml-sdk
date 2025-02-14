@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "vllm-proxy"
-version = "0.1.0"
+version = "0.2.1"
 description = ""
 authors = ["Shawn TIAN"]
 readme = "README.md"
@@ -15,6 +15,15 @@ eth-utils = "^5.1.0"
 cachetools = "^5.5.0"
 dstack-sdk = "^0.1.5"
 cryptography = "^38.0.2"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.3.4"
+pytest-asyncio = "^0.25.3"
+respx = "^0.22.0"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
 
 [build-system]
 requires = ["poetry-core"]
