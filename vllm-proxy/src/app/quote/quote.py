@@ -68,9 +68,7 @@ class Quote:
             format=serialization.PublicFormat.Raw,
         )
         self.public_key = self.public_key_bytes.hex()
-        self.signing_address = (
-            "0x" + hashlib.sha3_256(self.public_key_bytes).digest()[-20:].hex()
-        )
+        self.signing_address = self.public_key
 
     def init_ecdsa(self):
         # Generate web3 (ECDSA) account
