@@ -19,3 +19,11 @@ def unexpect_error():
         param=None,
         code=None,
     )
+
+def invalid_signing_algo():
+    return error(
+        message="Invalid signing algorithm. Must be 'ed25519' or 'ecdsa'",
+        type="invalid_signing_algo",
+        param=None,
+        code=None,
+    )

@@ -125,11 +125,14 @@ class Quote:
         return payload
 
 
-quote = Quote(signing_method=SIGNING_METHOD)
-quote.init()
+ecdsa_quote = Quote(signing_method=ECDSA)
+ecdsa_quote.init()
+
+ed25519_quote = Quote(signing_method=ED25519)
+ed25519_quote.init()
+
 
 if __name__ == "__main__":
-    # Default to ed25519 signing
     quote = Quote(signing_method=ED25519)
     quote.init()
     print(
