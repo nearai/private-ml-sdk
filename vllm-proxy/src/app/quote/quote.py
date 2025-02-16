@@ -10,6 +10,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives import serialization
 from dstack_sdk import TappdClient
 from verifier import cc_admin
+from eth_account.messages import encode_defunct
 
 
 ED25519 = "ed25519"
@@ -106,9 +107,8 @@ class Quote:
 
     def _sign_ecdsa(self, content: str):
         # Sign content using web3 (ECDSA)
-        return self.raw_acct.sign_message(
-            eth_account.messages.encode_defunct(text=content)
-        ).signature.hex()
+        signed_message = self.raw_acct.sign_message(encode_defunct(text=content))
+        return f"0x{signed_message.signature.hex()}"
 
     def build_payload(self, nonce, evidence, cert_chain):
         data = dict()
