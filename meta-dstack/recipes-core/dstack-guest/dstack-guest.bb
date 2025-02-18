@@ -16,7 +16,7 @@ S = "${WORKDIR}/${SRC_DIR}"
 
 RDEPENDS:${PN} += "bash"
 
-DSTACK_SERVICES = "tappd.service tboot.service app-compose.service wg-checker.service"
+DSTACK_SERVICES = "tappd.service tboot.service app-compose.service"
 SYSTEMD_PACKAGES = "${@bb.utils.contains('DISTRO_FEATURES','systemd','${PN}','',d)}"
 SYSTEMD_SERVICE:${PN} = "${@bb.utils.contains('DISTRO_FEATURES','systemd','${DSTACK_SERVICES}','',d)}"
 SYSTEMD_AUTO_ENABLE:${PN} = "enable"
@@ -46,7 +46,6 @@ do_install() {
     install -m 0755 ${CARGO_BINDIR}/tappd ${D}${bindir}
     install -m 0755 ${S}/basefiles/tboot.sh ${D}${bindir}
     install -m 0755 ${S}/basefiles/app-compose.sh ${D}${bindir}
-    install -m 0755 ${S}/basefiles/wg-checker.sh ${D}${bindir}
     install -m 0755 ${WORKDIR}/docker-daemon.json ${D}${sysconfdir}/docker/daemon.json
     install -m 0644 ${S}/basefiles/journald.conf ${D}${sysconfdir}/systemd/journald.conf.d/dstack.conf
 
@@ -60,7 +59,6 @@ do_install() {
         install -m 0644 ${S}/basefiles/tappd.service ${D}${systemd_system_unitdir}
         install -m 0644 ${S}/basefiles/tboot.service ${D}${systemd_system_unitdir}
         install -m 0644 ${S}/basefiles/app-compose.service ${D}${systemd_system_unitdir}
-        install -m 0644 ${S}/basefiles/wg-checker.service ${D}${systemd_system_unitdir}
         install -m 0644 ${S}/basefiles/llmnr.conf ${D}${sysconfdir}/systemd/resolved.conf.d
     else
         install -d ${D}${sysconfdir}/init.d
