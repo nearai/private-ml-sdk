@@ -10,6 +10,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives import serialization
 from dstack_sdk import TappdClient
 from verifier import cc_admin
+from eth_account.messages import encode_defunct
 
 
 ED25519 = "ed25519"
@@ -67,9 +68,7 @@ class Quote:
             format=serialization.PublicFormat.Raw,
         )
         self.public_key = self.public_key_bytes.hex()
-        self.signing_address = (
-            "0x" + hashlib.sha3_256(self.public_key_bytes).digest()[-20:].hex()
-        )
+        self.signing_address = self.public_key
 
     def init_ecdsa(self):
         # Generate web3 (ECDSA) account
@@ -106,9 +105,8 @@ class Quote:
 
     def _sign_ecdsa(self, content: str):
         # Sign content using web3 (ECDSA)
-        return self.raw_acct.sign_message(
-            eth_account.messages.encode_defunct(text=content)
-        ).signature.hex()
+        signed_message = self.raw_acct.sign_message(encode_defunct(text=content))
+        return f"0x{signed_message.signature.hex()}"
 
     def build_payload(self, nonce, evidence, cert_chain):
         data = dict()
@@ -125,11 +123,14 @@ class Quote:
         return payload
 
 
-quote = Quote(signing_method=SIGNING_METHOD)
-quote.init()
+ecdsa_quote = Quote(signing_method=ECDSA)
+ecdsa_quote.init()
+
+ed25519_quote = Quote(signing_method=ED25519)
+ed25519_quote.init()
+
 
 if __name__ == "__main__":
-    # Default to ed25519 signing
     quote = Quote(signing_method=ED25519)
     quote.init()
     print(
