@@ -15,10 +15,10 @@ from app.api.helper.auth import verify_authorization_header
 router = APIRouter(tags=["openai"])
 
 VLLM_URL = "http://vllm:8000/v1/chat/completions"
-TIMEOUT = 60 * 5
+TIMEOUT = 60 * 10
 
-# Cache for storing full request-response pairs (TTL of 5 minutes)
-cache = TTLCache(maxsize=1000, ttl=300)
+# Cache for storing full request-response pairs (TTL of 20 minutes)
+cache = TTLCache(maxsize=1000, ttl=1200)
 
 
 def sign_request(request: dict, response: str):
