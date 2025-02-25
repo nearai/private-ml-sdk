@@ -101,8 +101,8 @@ dstack new app.yaml -o my-gpu-cvm \
     --gpu 18:00.0 \
     --image images/dstack-nvidia-dev-0.3.3 \
     -c 2 -m 4G -d 100G \
-    --port tcp:10022:22 \
-    --port tcp:8888:8888
+    --port tcp:127.0.0.1:10022:22 \
+    --port tcp:0.0.0.0:8888:8888
 
 # Run the CVM:
 sudo -E dstack run my-gpu-cvm
@@ -129,6 +129,22 @@ services:
               capabilities: [gpu]
     runtime: nvidia
 ```
+
+#### Verify the TDX CVM Service Status
+
+1. SSH into the CVM (SSH service is only available when using dev image of `images/dstack-nvidia-dev-0.3.3`):
+  
+  ```bash
+  ssh -p 10022 root@localhost
+  docker ps -a # check if the docker compose service is running
+  ```
+
+2. Check the `jupyter` service status via the browser:
+
+  ```
+  http://localhost:8888
+  http://<public-ip>:8888
+  ```
 
 ### Getting TDX quote inside the container
 
