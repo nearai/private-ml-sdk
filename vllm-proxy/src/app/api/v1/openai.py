@@ -35,7 +35,7 @@ async def stream_vllm_response(request_body: bytes):
 
     # Modify the request body to use the correct model path and lowercasemodel name
     request_json = json.loads(request_body)
-    request_json["model"] = "/mnt/models/" + request_json["model"].lower()
+    request_json["model"] = request_json["model"].lower()
     modified_request_body = json.dumps(request_json)
 
     chat_id = None
@@ -87,7 +87,7 @@ async def non_stream_vllm_response(request_body: bytes):
 
     # Modify the request body to use the correct model path and lowercase model name
     request_json = json.loads(request_body)
-    request_json["model"] = "/mnt/models/" + request_json["model"].lower()
+    request_json["model"] = request_json["model"].lower()
     modified_request_body = json.dumps(request_json)
 
     async with httpx.AsyncClient(
