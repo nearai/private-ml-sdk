@@ -58,8 +58,8 @@ TPROXY_RPC_LISTEN_PORT=9010
 
 TPROXY_WG_INTERFACE=tproxy-$USER
 TPROXY_WG_LISTEN_PORT=9182
-TPROXY_WG_IP=10.0.3.1
-TPROXY_WG_CLIENT_IP_RANGE=10.0.3.0/24
+TPROXY_WG_IP=10.0.3.1/24
+TPROXY_WG_RESERVED_NET=10.0.3.1/32
 TPROXY_SERVE_PORT=9443
 
 BIND_PUBLIC_IP=0.0.0.0
@@ -161,7 +161,14 @@ mandatory = false
 
 [core]
 kms_url = "https://localhost:$KMS_RPC_LISTEN_PORT"
-tls_domain = "$TPROXY_DOMAIN"
+rpc_domain = "$TPROXY_DOMAIN"
+run_as_tapp = false
+
+[core.sync]
+enabled = true
+interval = "30s"
+my_url = "https://localhost:$TPROXY_RPC_LISTEN_PORT"
+bootnode = "https://localhost:$TPROXY_RPC_LISTEN_PORT"
 
 [core.certbot]
 workdir = "$CERBOT_WORKDIR"
@@ -169,9 +176,10 @@ workdir = "$CERBOT_WORKDIR"
 [core.wg]
 private_key = "$TPROXY_WG_KEY"
 public_key = "$TPROXY_WG_PUBKEY"
-ip = "$TPROXY_WG_IP"
 listen_port = $TPROXY_WG_LISTEN_PORT
-client_ip_range = "$TPROXY_WG_CLIENT_IP_RANGE"
+ip = "$TPROXY_WG_IP"
+reserved_net = "$TPROXY_WG_RESERVED_NET"
+client_ip_range = "$TPROXY_WG_IP"
 config_path = "$RUN_DIR/wg.conf"
 interface = "$TPROXY_WG_INTERFACE"
 endpoint = "10.0.2.2:$TPROXY_WG_LISTEN_PORT"
@@ -256,7 +264,7 @@ build_wg() {
     # Check if the WireGuard interface exists
     if ! ip link show $TPROXY_WG_INTERFACE &> /dev/null; then
         sudo ip link add $TPROXY_WG_INTERFACE type wireguard
-        sudo ip address add $TPROXY_WG_IP/24 dev $TPROXY_WG_INTERFACE
+        sudo ip address add $TPROXY_WG_IP dev $TPROXY_WG_INTERFACE
         sudo ip link set $TPROXY_WG_INTERFACE up
         echo "created and configured WireGuard interface $TPROXY_WG_INTERFACE"
     else
