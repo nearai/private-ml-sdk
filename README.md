@@ -130,21 +130,33 @@ services:
     runtime: nvidia
 ```
 
-#### Verify the TDX CVM Service Status
+### Verifying the TDX CVM Service Status
 
-1. SSH into the CVM (SSH service is only available when using dev image of `images/dstack-nvidia-dev-0.3.3`):
-  
-  ```bash
-  ssh -p 10022 root@localhost
-  docker ps -a # check if the docker compose service is running
-  ```
+1. **SSH into the CVM**
+   Note: SSH access is only available when using the development image `images/dstack-nvidia-dev-0.3.3`.
 
-2. Check the `jupyter` service status via the browser:
+   Execute the following command to establish an SSH connection:
+   ```bash
+   ssh -p 10022 root@localhost
+   ```
+   *Note: Port 10022 is mapped to the CVM's port 22 during the creation of the CVM.*
 
-  ```
-  http://localhost:8888
-  http://<public-ip>:8888
-  ```
+   After logging in, check the status of the Docker Compose services by running:
+   ```bash
+   docker ps -a
+   ```
+
+2. **Verify the Jupyter Service Status**
+   To confirm that the Docker Compose services are running correctly, access the Jupyter service through your web browser:
+
+   - For local access, navigate to:
+     [http://localhost:8888](http://localhost:8888)
+     *(Port 8888 is mapped to the CVM's port 8888 during the creation of the CVM.)*
+
+   - For remote access, use the following URL:
+     [http://<public-ip>:8888](http://<public-ip>:8888)
+     *(Replace `<public-ip>` with the actual public IP address of your CVM.)*
+
 
 ### Getting TDX quote inside the container
 
