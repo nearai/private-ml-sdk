@@ -40,7 +40,8 @@ require_config() {
 # base domain of kms rpc and tproxy rpc
 # 1022.kvin.wang resolves to 10.0.2.2 which is host ip at the
 # cvm point of view
-BASE_DOMAIN=1022.kvin.wang
+KMS_DOMAIN=kms.1022.kvin.wang
+TPROXY_DOMAIN=tproxy.1022.kvin.wang
 
 TEEPOD_RPC_LISTEN_PORT=9080
 # CIDs allocated to VMs start from this number of type unsigned int32
@@ -51,15 +52,14 @@ TEEPOD_CID_POOL_SIZE=1000
 TEEPOD_PORT_MAPPING_ENABLED=false
 # Host API configuration, type of uint32
 TEEPOD_VSOCK_LISTEN_PORT=9080
-TEEPOD_PCCS_URL=https://10.0.2.2:8081/sgx/certification/v4/
 
 KMS_RPC_LISTEN_PORT=9043
 TPROXY_RPC_LISTEN_PORT=9010
 
 TPROXY_WG_INTERFACE=tproxy-$USER
 TPROXY_WG_LISTEN_PORT=9182
-TPROXY_WG_IP=10.0.3.1
-TPROXY_WG_CLIENT_IP_RANGE=10.0.3.0/24
+TPROXY_WG_IP=10.0.3.1/24
+TPROXY_WG_RESERVED_NET=10.0.3.1/32
 TPROXY_SERVE_PORT=9443
 
 BIND_PUBLIC_IP=0.0.0.0
@@ -110,12 +110,6 @@ build_guest() {
     make -C $META_DIR dist DIST_DIR=$IMAGES_DIR BB_BUILD_DIR=${BBPATH}
 }
 
-# Step 3: make certs
-build_certs() {
-    echo "Building certs"
-    make -C $DSTACK_DIR certs DOMAIN=$BASE_DOMAIN TO=$CERTS_DIR
-}
-
 # Step 4: generate config files
 
 build_cfg() {
@@ -125,30 +119,30 @@ build_cfg() {
     # kms
     cat <<EOF > kms.toml
 log_level = "info"
+
+[rpc]
 address = "127.0.0.1"
 port = $KMS_RPC_LISTEN_PORT
 
-[tls]
-key = "$CERTS_DIR/kms-rpc.key"
-certs = "$CERTS_DIR/kms-rpc.cert"
+[rpc.tls]
+key = "$CERTS_DIR/rpc.key"
+certs = "$CERTS_DIR/rpc.crt"
 
-[tls.mutual]
-ca_certs = "$CERTS_DIR/tmp-ca.cert"
+[rpc.tls.mutual]
+ca_certs = "$CERTS_DIR/tmp-ca.crt"
 mandatory = false
 
 [core]
-root_ca_cert = "$CERTS_DIR/root-ca.cert"
-root_ca_key = "$CERTS_DIR/root-ca.key"
-subject_postfix = ".phala"
-upgrade_registry_dir = "$KMS_UPGRADE_REGISTRY_DIR"
-cert_log_dir = "$KMS_CERT_LOG_DIR"
+cert_dir = "$CERTS_DIR"
 
-[core.allowed_mr]
-allow_all = true
-mrtd = []
-rtmr0 = []
-rtmr1 = []
-rtmr2 = []
+[core.auth_api]
+type = "dev"
+
+[core.onboard]
+quote_enabled = false
+address = "127.0.0.1"
+port = $KMS_RPC_LISTEN_PORT
+auto_bootstrap_domain = "$KMS_DOMAIN"
 EOF
 
     # tproxy
@@ -162,8 +156,19 @@ key = "$CERTS_DIR/tproxy-rpc.key"
 certs = "$CERTS_DIR/tproxy-rpc.cert"
 
 [tls.mutual]
-ca_certs = "$CERTS_DIR/root-ca.cert"
+ca_certs = "$CERTS_DIR/tproxy-ca.cert"
 mandatory = false
+
+[core]
+kms_url = "https://localhost:$KMS_RPC_LISTEN_PORT"
+rpc_domain = "$TPROXY_DOMAIN"
+run_as_tapp = false
+
+[core.sync]
+enabled = true
+interval = "30s"
+my_url = "https://localhost:$TPROXY_RPC_LISTEN_PORT"
+bootnode = "https://localhost:$TPROXY_RPC_LISTEN_PORT"
 
 [core.certbot]
 workdir = "$CERBOT_WORKDIR"
@@ -171,9 +176,10 @@ workdir = "$CERBOT_WORKDIR"
 [core.wg]
 private_key = "$TPROXY_WG_KEY"
 public_key = "$TPROXY_WG_PUBKEY"
-ip = "$TPROXY_WG_IP"
 listen_port = $TPROXY_WG_LISTEN_PORT
-client_ip_range = "$TPROXY_WG_CLIENT_IP_RANGE"
+ip = "$TPROXY_WG_IP"
+reserved_net = "$TPROXY_WG_RESERVED_NET"
+client_ip_range = "$TPROXY_WG_IP"
 config_path = "$RUN_DIR/wg.conf"
 interface = "$TPROXY_WG_INTERFACE"
 endpoint = "10.0.2.2:$TPROXY_WG_LISTEN_PORT"
@@ -197,12 +203,8 @@ run_path = "$RUN_DIR/vm"
 kms_url = "https://localhost:$KMS_RPC_LISTEN_PORT"
 
 [cvm]
-ca_cert = "$CERTS_DIR/root-ca.cert"
-tmp_ca_cert = "$CERTS_DIR/tmp-ca.cert"
-tmp_ca_key = "$CERTS_DIR/tmp-ca.key"
-kms_url = "https://kms.$BASE_DOMAIN:$KMS_RPC_LISTEN_PORT"
-tproxy_url = "https://tproxy.$BASE_DOMAIN:$TPROXY_RPC_LISTEN_PORT"
-pccs_url = "$TEEPOD_PCCS_URL"
+kms_url = "https://$KMS_DOMAIN:$KMS_RPC_LISTEN_PORT"
+tproxy_url = "https://$TPROXY_DOMAIN:$TPROXY_RPC_LISTEN_PORT"
 cid_start = $TEEPOD_CID_POOL_START
 cid_pool_size = $TEEPOD_CID_POOL_SIZE
 [cvm.port_mapping]
@@ -262,7 +264,7 @@ build_wg() {
     # Check if the WireGuard interface exists
     if ! ip link show $TPROXY_WG_INTERFACE &> /dev/null; then
         sudo ip link add $TPROXY_WG_INTERFACE type wireguard
-        sudo ip address add $TPROXY_WG_IP/24 dev $TPROXY_WG_INTERFACE
+        sudo ip address add $TPROXY_WG_IP dev $TPROXY_WG_INTERFACE
         sudo ip link set $TPROXY_WG_INTERFACE up
         echo "created and configured WireGuard interface $TPROXY_WG_INTERFACE"
     else
@@ -285,7 +287,6 @@ case $ACTION in
         ;;
     certs)
         require_config
-        build_certs
         ;;
     wg)
         require_config
@@ -296,7 +297,6 @@ case $ACTION in
         require_config
         build_host
         build_guest
-        build_certs
         build_cfg
         build_wg
         ;;
