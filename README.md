@@ -158,6 +158,36 @@ services:
      *(Replace `<public-ip>` with the actual public IP address of your CVM.)*
 
 
+### Updating the Environment Variables of the TDX CVM
+
+To update the environment variables for the TDX CVM, execute the following command:
+
+```bash
+cp env-file <your-cvm-path>/shared/env-file
+```
+
+The `env-file` is a text file that contains the necessary environment variables for the Docker Compose services. An example of the contents of the `env-file` is as follows:
+
+```
+# env-file
+REDPILL_API_KEY=sk-1234567890
+REDPILL_MODEL=phala/llama-3.3-70b-instruct
+```
+
+After copying the `env-file`, restart the CVM. The environment variables specified in the `env-file` will be accessible within the Docker Compose service YAML. During the boot process, this `env-file` is copied to the `/tapp/env-file` directory within the CVM.
+
+For instance, in your `docker-compose.yaml`, you can reference the `env-file` as shown below:
+
+```yaml
+# docker-compose.yaml, using the Jupyter service as an example
+services:
+  jupyter:
+    env_file:
+      - /tapp/env-file
+```
+
+This approach ensures that your environment variables are properly configured and accessible to your services.
+
 ### Getting TDX quote inside the container
 
 1. Install the SDK package:
