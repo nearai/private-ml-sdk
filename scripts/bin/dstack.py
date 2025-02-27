@@ -263,7 +263,7 @@ class DStackManager:
             # Read image metadata and create config.json
             image_path = args.image or self.get_default_image_path()
             rootfs_hash = self._read_image_metadata(image_path)
-            with open(os.path.join(shared_dir, 'config.json'), 'w') as f:
+            with open(os.path.join(shared_dir, '.sys-config.json'), 'w') as f:
                 config = {
                     "rootfs_hash": rootfs_hash,
                     "docker_registry": self.config.docker_registry,
@@ -321,7 +321,7 @@ class DStackManager:
 
         # Update config.json with host API URL and port
         shared_dir = os.path.join(vm_dir, 'shared')
-        config_file = os.path.join(shared_dir, 'config.json')
+        config_file = os.path.join(shared_dir, '.sys-config.json')
         config = json.load(open(config_file, 'r'))
         config['host_api_url'] = f"http://10.0.2.2:{host_port}/api"
         config['host_vsock_port'] = host_port
