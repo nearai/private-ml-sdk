@@ -101,8 +101,8 @@ dstack new app.yaml -o my-gpu-cvm \
     --gpu 18:00.0 \
     --image images/dstack-nvidia-dev-0.3.3 \
     -c 2 -m 4G -d 100G \
-    --port tcp:10022:22 \
-    --port tcp:8888:8888
+    --port tcp:127.0.0.1:10022:22 \
+    --port tcp:0.0.0.0:8888:8888
 
 # Run the CVM:
 sudo -E dstack run my-gpu-cvm
@@ -129,6 +129,64 @@ services:
               capabilities: [gpu]
     runtime: nvidia
 ```
+
+### Verifying the TDX CVM Service Status
+
+1. **SSH into the CVM**
+   Note: SSH access is only available when using the development image `images/dstack-nvidia-dev-0.3.3`.
+
+   Execute the following command to establish an SSH connection:
+   ```bash
+   ssh -p 10022 root@localhost
+   ```
+   *Note: Port 10022 is mapped to the CVM's port 22 during the creation of the CVM.*
+
+   After logging in, check the status of the Docker Compose services by running:
+   ```bash
+   docker ps -a
+   ```
+
+2. **Verify the Jupyter Service Status**
+   To confirm that the Docker Compose services are running correctly, access the Jupyter service through your web browser:
+
+   - For local access, navigate to:
+     [http://localhost:8888](http://localhost:8888)
+     *(Port 8888 is mapped to the CVM's port 8888 during the creation of the CVM.)*
+
+   - For remote access, use the following URL:
+     [http://<public-ip>:8888](http://<public-ip>:8888)
+     *(Replace `<public-ip>` with the actual public IP address of your CVM.)*
+
+
+### Updating the Environment Variables of the TDX CVM
+
+To update the environment variables for the TDX CVM, execute the following command:
+
+```bash
+cp env-file <your-cvm-path>/shared/env-file
+```
+
+The `env-file` is a text file that contains the necessary environment variables for the Docker Compose services. An example of the contents of the `env-file` is as follows:
+
+```
+# env-file
+REDPILL_API_KEY=sk-1234567890
+REDPILL_MODEL=phala/llama-3.3-70b-instruct
+```
+
+After copying the `env-file`, restart the CVM. The environment variables specified in the `env-file` will be accessible within the Docker Compose service YAML. During the boot process, this `env-file` is copied to the `/tapp/env-file` directory within the CVM.
+
+For instance, in your `docker-compose.yaml`, you can reference the `env-file` as shown below:
+
+```yaml
+# docker-compose.yaml, using the Jupyter service as an example
+services:
+  jupyter:
+    env_file:
+      - /tapp/env-file
+```
+
+This approach ensures that your environment variables are properly configured and accessible to your services.
 
 ### Getting TDX quote inside the container
 

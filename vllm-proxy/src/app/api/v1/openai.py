@@ -7,18 +7,18 @@ from hashlib import sha256
 from fastapi.responses import StreamingResponse, JSONResponse
 from cachetools import TTLCache
 
-from app.quote.quote import quote, ED25519, ECDSA
-from app.api.response.response import ok, error
+from app.quote.quote import ecdsa_quote, ed25519_quote, ECDSA, ED25519
+from app.api.response.response import ok, error, invalid_signing_algo
 from app.logger import log
 from app.api.helper.auth import verify_authorization_header
 
 router = APIRouter(tags=["openai"])
 
 VLLM_URL = "http://vllm:8000/v1/chat/completions"
-TIMEOUT = 60 * 5
+TIMEOUT = 60 * 10
 
-# Cache for storing full request-response pairs (TTL of 5 minutes)
-cache = TTLCache(maxsize=1000, ttl=300)
+# Cache for storing full request-response pairs (TTL of 20 minutes)
+cache = TTLCache(maxsize=1000, ttl=1200)
 
 
 def sign_request(request: dict, response: str):
@@ -35,12 +35,12 @@ async def stream_vllm_response(request_body: bytes):
 
     # Modify the request body to use the correct model path and lowercasemodel name
     request_json = json.loads(request_body)
-    request_json["model"] = "/mnt/models/" + request_json["model"].lower()
+    request_json["model"] = request_json["model"].lower()
     modified_request_body = json.dumps(request_json)
 
     chat_id = None
     h = sha256()
-    
+
     async def generate_stream(response):
         nonlocal chat_id, h
         async for chunk in response.aiter_text():
@@ -54,7 +54,7 @@ async def stream_vllm_response(request_body: bytes):
                 except Exception as e:
                     raise Exception(f"Failed to parse the first chunk: {e}")
             yield chunk
-        
+
         response_sha256 = h.hexdigest()
         # Cache the full request and response using the extracted cache key
         if chat_id:
@@ -72,14 +72,14 @@ async def stream_vllm_response(request_body: bytes):
         await response.aclose()
         await client.aclose()
         return JSONResponse(
-            status_code=response.status_code,
-            content=json.loads(error_content)
+            status_code=response.status_code, content=json.loads(error_content)
         )
 
     return StreamingResponse(
         generate_stream(response),
-        background=BackgroundTasks([response.aclose, client.aclose])
+        background=BackgroundTasks([response.aclose, client.aclose]),
     )
+
 
 # Function to handle non-streaming responses
 async def non_stream_vllm_response(request_body: bytes):
@@ -87,25 +87,38 @@ async def non_stream_vllm_response(request_body: bytes):
 
     # Modify the request body to use the correct model path and lowercase model name
     request_json = json.loads(request_body)
-    request_json["model"] = "/mnt/models/" + request_json["model"].lower()
+    request_json["model"] = request_json["model"].lower()
     modified_request_body = json.dumps(request_json)
 
-    async with httpx.AsyncClient(
-        timeout=httpx.Timeout(TIMEOUT)
-    ) as client:  # Increase timeout to 60 seconds
-        # Forward the request to the vllm backend
+    async with httpx.AsyncClient(timeout=httpx.Timeout(TIMEOUT)) as client:
         response = await client.post(VLLM_URL, content=modified_request_body)
         if response.status_code != 200:
-            raise HTTPException(
-                status_code=response.status_code,
-                detail=response.text
-            )
-        return response.json()
+            raise HTTPException(status_code=response.status_code, detail=response.text)
+
+        response_data = response.json()
+        # Cache the request-response pair using the chat ID
+        chat_id = response_data.get("id")
+        if chat_id:
+            response_text = json.dumps(response_data)
+            response_sha256 = sha256(response_text.encode()).hexdigest()
+            cache[chat_id] = f"{request_sha256}:{response_sha256}"
+        else:
+            raise Exception("Chat id could not be extracted from the response")
+
+        return response_data
 
 
 # Get attestation report of intel quote and nvidia payload
 @router.get("/attestation/report", dependencies=[Depends(verify_authorization_header)])
-async def attestation_report(request: Request):
+async def attestation_report(request: Request, signing_algo: str = None):
+    signing_algo = ECDSA if signing_algo is None else signing_algo
+    if signing_algo == ECDSA:
+        quote = ecdsa_quote
+    elif signing_algo == ED25519:
+        quote = ed25519_quote
+    else:
+        return invalid_signing_algo()
+
     return dict(
         signing_address=quote.signing_address,
         intel_quote=quote.intel_quote,
@@ -140,14 +153,17 @@ async def signature(request: Request, chat_id: str, signing_algo: str = None):
     if chat_id not in cache:
         return error("Chat id not found or expired", "chat_id_not_found")
 
-    if signing_algo is None:
-        signing_algo = quote.signing_method
-    elif signing_algo not in [ED25519, ECDSA]:
-        return error("Invalid signing algorithm. Must be 'ed25519' or 'ecdsa'", "invalid_signing_algo")
-
     # Retrieve the cached request and response
     chat_data = cache[chat_id]
-    signature = quote.sign(chat_data)
+    signature = None
+    signing_algo = ECDSA if signing_algo is None else signing_algo
+    if signing_algo == ECDSA:
+        signature = ecdsa_quote.sign(chat_data)
+    elif signing_algo == ED25519:
+        signature = ed25519_quote.sign(chat_data)
+    else:
+        return invalid_signing_algo()
+
     return dict(
         text=chat_data,
         signature=signature,
