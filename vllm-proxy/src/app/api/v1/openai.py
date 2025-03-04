@@ -90,14 +90,22 @@ async def non_stream_vllm_response(request_body: bytes):
     request_json["model"] = request_json["model"].lower()
     modified_request_body = json.dumps(request_json)
 
-    async with httpx.AsyncClient(
-        timeout=httpx.Timeout(TIMEOUT)
-    ) as client:  # Increase timeout to 60 seconds
-        # Forward the request to the vllm backend
+    async with httpx.AsyncClient(timeout=httpx.Timeout(TIMEOUT)) as client:
         response = await client.post(VLLM_URL, content=modified_request_body)
         if response.status_code != 200:
             raise HTTPException(status_code=response.status_code, detail=response.text)
-        return response.json()
+
+        response_data = response.json()
+        # Cache the request-response pair using the chat ID
+        chat_id = response_data.get("id")
+        if chat_id:
+            response_text = json.dumps(response_data)
+            response_sha256 = sha256(response_text.encode()).hexdigest()
+            cache[chat_id] = f"{request_sha256}:{response_sha256}"
+        else:
+            raise Exception("Chat id could not be extracted from the response")
+
+        return response_data
 
 
 # Get attestation report of intel quote and nvidia payload
