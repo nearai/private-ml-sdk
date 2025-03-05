@@ -14,7 +14,6 @@ ROOTFS_HD=/dev/vda
 ROOTFS_DIR=/root
 
 KMFS_WORK_DIR=/kmfs
-SHARED_COPY=/tapp
 HOST_SHARED=/mnt/host-shared
 
 panic() {
@@ -26,7 +25,6 @@ panic() {
 echo "Setting up FDE"
 echo "FDE setup arguments:"
 echo "  HOST_SHARED=$HOST_SHARED"
-echo "  SHARED_COPY=$SHARED_COPY" 
 echo "  KMFS_WORK_DIR=$KMFS_WORK_DIR"
 echo "  ROOTFS_DIR=$ROOTFS_DIR"
 echo "  ROOTFS_HD=$ROOTFS_HD"
@@ -37,7 +35,6 @@ echo "  ROOTFS_ENCRYPTION=$ROOTFS_ENCRYPTION"
 
 tdxctl setup-fde \
     --host-shared $HOST_SHARED \
-    --host-shared-copy $SHARED_COPY \
     --work-dir $KMFS_WORK_DIR \
     --rootfs-dir $ROOTFS_DIR \
     --root-hd $ROOTFS_HD \

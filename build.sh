@@ -203,8 +203,8 @@ run_path = "$RUN_DIR/vm"
 kms_url = "https://localhost:$KMS_RPC_LISTEN_PORT"
 
 [cvm]
-kms_url = "https://$KMS_DOMAIN:$KMS_RPC_LISTEN_PORT"
-tproxy_url = "https://$TPROXY_DOMAIN:$TPROXY_RPC_LISTEN_PORT"
+kms_urls = ["https://$KMS_DOMAIN:$KMS_RPC_LISTEN_PORT"]
+tproxy_urls = ["https://$TPROXY_DOMAIN:$TPROXY_RPC_LISTEN_PORT"]
 cid_start = $TEEPOD_CID_POOL_START
 cid_pool_size = $TEEPOD_CID_POOL_SIZE
 [cvm.port_mapping]
