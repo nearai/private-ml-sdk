@@ -43,6 +43,7 @@ build_to() {
     mkdir -p $1
     BUILD_CMD="${2} ${GUEST_SRC_DIR}/${META_SUBDIR}/build.sh guest ./bb-build"
     docker run --platform linux/amd64 --rm \
+        --userns=host \
         --user $(id -u):$(id -g) \
         -v $REPO_ROOT:$GUEST_SRC_DIR \
         -v $1:$GUEST_BUILD_DIR \
