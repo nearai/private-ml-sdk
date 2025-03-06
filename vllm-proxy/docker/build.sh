@@ -2,5 +2,5 @@
 
 docker build \
     -f docker/Dockerfile \
-    -t vllm-proxy:0.2.1 \
+    -t 0xii/vllm-proxy:0.2.5 \
     .

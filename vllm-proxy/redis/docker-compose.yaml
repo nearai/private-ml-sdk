@@ -11,6 +11,7 @@ services:
       - REDIS_PASSWORD=${REDIS_PASSWORD} # Set a strong password for Redis
       - REDIS_MAXMEMORY=2gb # Limit memory usage to prevent OOM issues
       - REDIS_MAXMEMORY_POLICY=allkeys-lru # Evict least recently used keys when memory is full
+    command: redis-server --save 20 1 --loglevel warning --requirepass ${REDIS_PASSWORD}
     sysctls:
       - net.core.somaxconn=1024 # Increase the maximum number of connections
     ulimits:
