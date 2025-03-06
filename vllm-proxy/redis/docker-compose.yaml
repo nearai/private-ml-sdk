@@ -8,7 +8,7 @@ services:
     volumes:
       - /opt/dstack/redis/redis_data:/data # Persist Redis data to a volume
     environment:
-      - REDIS_PASSWORD=ooYooL2Aicajoh3n # Set a strong password for Redis
+      - REDIS_PASSWORD=${REDIS_PASSWORD} # Set a strong password for Redis
       - REDIS_MAXMEMORY=2gb # Limit memory usage to prevent OOM issues
       - REDIS_MAXMEMORY_POLICY=allkeys-lru # Evict least recently used keys when memory is full
     sysctls:
