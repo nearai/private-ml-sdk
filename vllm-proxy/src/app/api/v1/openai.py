@@ -150,22 +150,22 @@ async def chat_completions(request: Request):
 # Get signature for chat_id of chat history
 @router.get("/signature/{chat_id}", dependencies=[Depends(verify_authorization_header)])
 async def signature(request: Request, chat_id: str, signing_algo: str = None):
-    if chat_id not in cache:
+    cache_value = cache.get_chat(chat_id)
+    if cache_value is None:
         return error("Chat id not found or expired", "chat_id_not_found")
 
     # Retrieve the cached request and response
-    chat_data = cache[chat_id]
     signature = None
     signing_algo = ECDSA if signing_algo is None else signing_algo
     if signing_algo == ECDSA:
-        signature = ecdsa_quote.sign(chat_data)
+        signature = ecdsa_quote.sign(cache_value)
     elif signing_algo == ED25519:
-        signature = ed25519_quote.sign(chat_data)
+        signature = ed25519_quote.sign(cache_value)
     else:
         return invalid_signing_algo()
 
     return dict(
-        text=chat_data,
+        text=cache_value,
         signature=signature,
         signing_algo=signing_algo,
     )

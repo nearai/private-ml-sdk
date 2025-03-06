@@ -15,6 +15,7 @@ eth-utils = "^5.1.0"
 cachetools = "^5.5.0"
 dstack-sdk = "^0.1.5"
 cryptography = "^38.0.2"
+redis = "^5.2.1"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.4"
