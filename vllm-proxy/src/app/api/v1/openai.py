@@ -1,24 +1,20 @@
 import json
-import httpx
 import os
-
-from fastapi import APIRouter, Request, Header, HTTPException, Depends, BackgroundTasks
 from hashlib import sha256
-from fastapi.responses import StreamingResponse, JSONResponse
-from cachetools import TTLCache
 
-from app.quote.quote import ecdsa_quote, ed25519_quote, ECDSA, ED25519
-from app.api.response.response import ok, error, invalid_signing_algo
-from app.logger import log
+import httpx
 from app.api.helper.auth import verify_authorization_header
+from app.api.response.response import error, invalid_signing_algo
+from app.cache.cache import cache
+from app.logger import log
+from app.quote.quote import ECDSA, ED25519, ecdsa_quote, ed25519_quote
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
+from fastapi.responses import JSONResponse, StreamingResponse
 
 router = APIRouter(tags=["openai"])
 
 VLLM_URL = "http://vllm:8000/v1/chat/completions"
 TIMEOUT = 60 * 10
-
-# Cache for storing full request-response pairs (TTL of 20 minutes)
-cache = TTLCache(maxsize=1000, ttl=1200)
 
 
 def sign_request(request: dict, response: str):
@@ -52,15 +48,19 @@ async def stream_vllm_response(request_body: bytes):
                     chunk_data = json.loads(data)
                     chat_id = chunk_data.get("id")
                 except Exception as e:
-                    raise Exception(f"Failed to parse the first chunk: {e}")
+                    error_message = f"Failed to parse the first chunk: {e}"
+                    log.error(error_message)
+                    raise Exception(error_message)
             yield chunk
 
         response_sha256 = h.hexdigest()
         # Cache the full request and response using the extracted cache key
         if chat_id:
-            cache[chat_id] = f"{request_sha256}:{response_sha256}"
+            cache.set_chat(chat_id, f"{request_sha256}:{response_sha256}")
         else:
-            raise Exception("Chat id could not be extracted from the response")
+            error_message = "Chat id could not be extracted from the response"
+            log.error(error_message)
+            raise Exception(error_message)
 
     client = httpx.AsyncClient(timeout=httpx.Timeout(TIMEOUT))
     # Forward the request to the vllm backend
@@ -101,7 +101,7 @@ async def non_stream_vllm_response(request_body: bytes):
         if chat_id:
             response_text = json.dumps(response_data)
             response_sha256 = sha256(response_text.encode()).hexdigest()
-            cache[chat_id] = f"{request_sha256}:{response_sha256}"
+            cache.set_chat(chat_id, f"{request_sha256}:{response_sha256}")
         else:
             raise Exception("Chat id could not be extracted from the response")
 
