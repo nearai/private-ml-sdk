@@ -26,6 +26,16 @@ def hash(payload: str):
     return sha256(payload.encode()).hexdigest()
 
 
+def sign_chat(text: str):
+    return dict(
+        text=text,
+        signature_ecdsa=ecdsa_quote.sign(text),
+        signing_address_ecdsa=ecdsa_quote.signing_address,
+        signature_ed25519=ed25519_quote.sign(text),
+        signing_address_ed25519=ed25519_quote.signing_address,
+    )
+
+
 async def stream_vllm_response(request_body: bytes):
     request_sha256 = sha256(request_body).hexdigest()
 
@@ -56,7 +66,9 @@ async def stream_vllm_response(request_body: bytes):
         response_sha256 = h.hexdigest()
         # Cache the full request and response using the extracted cache key
         if chat_id:
-            cache.set_chat(chat_id, f"{request_sha256}:{response_sha256}")
+            cache.set_chat(
+                chat_id, json.dumps(sign_chat(f"{request_sha256}:{response_sha256}"))
+            )
         else:
             error_message = "Chat id could not be extracted from the response"
             log.error(error_message)
@@ -101,7 +113,9 @@ async def non_stream_vllm_response(request_body: bytes):
         if chat_id:
             response_text = json.dumps(response_data)
             response_sha256 = sha256(response_text.encode()).hexdigest()
-            cache.set_chat(chat_id, f"{request_sha256}:{response_sha256}")
+            cache.set_chat(
+                chat_id, json.dumps(sign_chat(f"{request_sha256}:{response_sha256}"))
+            )
         else:
             raise Exception("Chat id could not be extracted from the response")
 
@@ -154,18 +168,28 @@ async def signature(request: Request, chat_id: str, signing_algo: str = None):
     if cache_value is None:
         return error("Chat id not found or expired", "chat_id_not_found")
 
-    # Retrieve the cached request and response
     signature = None
     signing_algo = ECDSA if signing_algo is None else signing_algo
+
+    # Retrieve the cached request and response
+    try:
+        value = json.loads(cache_value)
+    except Exception as e:
+        return error(f"Failed to parse the cache value: {e}", "invalid_cache_value")
+
+    signing_address = None
     if signing_algo == ECDSA:
-        signature = ecdsa_quote.sign(cache_value)
+        signature = value.get("signature_ecdsa")
+        signing_address = value.get("signing_address_ecdsa")
     elif signing_algo == ED25519:
-        signature = ed25519_quote.sign(cache_value)
+        signature = value.get("signature_ed25519")
+        signing_address = value.get("signing_address_ed25519")
     else:
         return invalid_signing_algo()
 
     return dict(
-        text=cache_value,
+        text=value.get("text"),
         signature=signature,
+        signing_address=signing_address,
         signing_algo=signing_algo,
     )
