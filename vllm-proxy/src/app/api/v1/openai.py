@@ -4,7 +4,8 @@ from hashlib import sha256
 
 import httpx
 from app.api.helper.auth import verify_authorization_header
-from app.api.response.response import error, invalid_signing_algo
+from app.api.response.response import (error, invalid_signing_algo,
+                                       unexpect_error)
 from app.cache.cache import cache
 from app.logger import log
 from app.quote.quote import ECDSA, ED25519, ecdsa_quote, ed25519_quote
@@ -126,18 +127,31 @@ async def non_stream_vllm_response(request_body: bytes):
 @router.get("/attestation/report", dependencies=[Depends(verify_authorization_header)])
 async def attestation_report(request: Request, signing_algo: str = None):
     signing_algo = ECDSA if signing_algo is None else signing_algo
-    if signing_algo == ECDSA:
-        quote = ecdsa_quote
-    elif signing_algo == ED25519:
-        quote = ed25519_quote
-    else:
+    if signing_algo not in [ECDSA, ED25519]:
         return invalid_signing_algo()
 
-    return dict(
-        signing_address=quote.signing_address,
-        intel_quote=quote.intel_quote,
-        nvidia_payload=quote.nvidia_payload,
+    data = dict(
+        ecdsa=dict(
+            signing_address=ecdsa_quote.signing_address,
+            intel_quote=ecdsa_quote.intel_quote,
+            nvidia_payload=ecdsa_quote.nvidia_payload,
+        ),
+        ed25519=dict(
+            signing_address=ed25519_quote.signing_address,
+            intel_quote=ed25519_quote.intel_quote,
+            nvidia_payload=ed25519_quote.nvidia_payload,
+        ),
     )
+    cache.set_attestation(ecdsa_quote.signing_address, data)
+
+    resp = data[signing_algo]
+    try:
+        attestations = cache.get_attestations() or []
+        resp["all_attestations"] = [a[signing_algo] for a in attestations]
+        return resp
+    except Exception as e:
+        log.error(f"Error parsing the attestations in cache: {e}")
+        return resp
 
 
 # VLLM Chat completions
