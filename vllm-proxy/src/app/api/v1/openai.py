@@ -4,17 +4,17 @@ from hashlib import sha256
 
 import httpx
 from app.api.helper.auth import verify_authorization_header
-from app.api.response.response import (error, invalid_signing_algo,
-                                       unexpect_error)
+from app.api.response.response import error, invalid_signing_algo
 from app.cache.cache import cache
 from app.logger import log
 from app.quote.quote import ECDSA, ED25519, ecdsa_quote, ed25519_quote
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse, PlainTextResponse
 
 router = APIRouter(tags=["openai"])
 
 VLLM_URL = "http://vllm:8000/v1/chat/completions"
+VLLM_METRICS_URL = "http://vllm:8000/metrics"
 TIMEOUT = 60 * 10
 
 
@@ -207,3 +207,13 @@ async def signature(request: Request, chat_id: str, signing_algo: str = None):
         signing_address=signing_address,
         signing_algo=signing_algo,
     )
+
+
+# Metrics of vLLM instance
+@router.get("/metrics")
+async def metrics(request: Request):
+    async with httpx.AsyncClient(timeout=httpx.Timeout(TIMEOUT)) as client:
+        response = await client.get(VLLM_METRICS_URL)
+        if response.status_code != 200:
+            raise HTTPException(status_code=response.status_code, detail=response.text)
+        return PlainTextResponse(response.text)
