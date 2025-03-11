@@ -46,12 +46,16 @@ class Quote:
             raise ValueError("Unsupported signing method")
 
         gpu_evidence = cc_admin.collect_gpu_evidence(self.public_key)[0]
+        gpu_report = gpu_evidence.get_attestation_report().hex()
+        gpu_cert_chain = gpu_evidence.CertificateChains.extract_gpu_cert_chain_base64(
+            gpu_evidence.CertificateChains.GpuAttestationCertificateChain
+        )
 
         self.intel_quote = self.get_quote(self.public_key)
         self.nvidia_payload = self.build_payload(
             self.signing_address,
-            gpu_evidence["attestationReportHexStr"],
-            gpu_evidence["certChainBase64Encoded"],
+            gpu_report,
+            gpu_cert_chain,
         )
 
         return dict(
