@@ -134,6 +134,17 @@ def load_configs_merged(config_paths):
     return config
 
 
+def update_guest_config(config_file: str, data: Dict):
+    if not os.path.exists(config_file):
+        config = {}
+    else:
+        with open(config_file, 'r') as f:
+            config = json.load(f)
+    config.update(data)
+    with open(config_file, 'w') as f:
+        json.dump(config, f, indent=4)
+
+
 @dataclass
 class DStackConfig:
     """Configuration for DStack client."""
@@ -257,13 +268,13 @@ class DStackManager:
                 json.dump(app_compose, f, indent=4)
             # Read image metadata and create config.json
             rootfs_hash = self._read_image_metadata(args.image)
-            with open(os.path.join(shared_dir, '.sys-config.json'), 'w') as f:
-                config = {
+
+            for filename in ['config.json', '.sys-config.json']:
+                update_guest_config(os.path.join(shared_dir, filename), {
                     "rootfs_hash": rootfs_hash,
                     "docker_registry": self.config.docker_registry,
                     "pccs_url": "https://api.trustedservices.intel.com/sgx/certification/v4",
-                }
-                json.dump(config, f, indent=4)
+                })
 
             # Create VM manifest
             memory = self._convert_memory_to_mb(str(args.memory))
@@ -316,12 +327,12 @@ class DStackManager:
 
         # Update config.json with host API URL and port
         shared_dir = os.path.join(vm_dir, 'shared')
-        config_file = os.path.join(shared_dir, '.sys-config.json')
-        config = json.load(open(config_file, 'r'))
-        config['host_api_url'] = f"http://10.0.2.2:{host_port}/api"
-        config['host_vsock_port'] = host_port
-        with open(config_file, 'w') as f:
-            json.dump(config, f, indent=4)
+        for filename in ['config.json', '.sys-config.json']:
+            config_file = os.path.join(shared_dir, filename)
+            update_guest_config(config_file, {
+                "host_api_url": f"http://10.0.2.2:{host_port}/api",
+                "host_vsock_port": host_port
+            })
 
         if not os.path.exists(img_metadata_path):
             raise ValueError(f"Image metadata not found at {img_metadata_path}")
@@ -417,14 +428,15 @@ def list_available_gpus() -> None:
     """List available NVIDIA GPUs."""
     try:
         # Run lspci with verbose output to get detailed information
-        result = subprocess.run(['lspci', '-vvk'], capture_output=True, text=True)
+        result = subprocess.run(
+            ['lspci', '-vvk'], capture_output=True, text=True)
         output_lines = result.stdout.split('\n')
-        
+
         # Find all GPU entries and their details
         gpu_blocks = []
         current_block = []
         in_gpu_block = False
-        
+
         for line in output_lines:
             if 'NVIDIA' in line and '3D controller' in line:
                 # Start of a new GPU block
@@ -441,21 +453,21 @@ def list_available_gpus() -> None:
                 else:
                     # Continue adding lines to the current block
                     current_block.append(line)
-        
+
         # Add the last block if it exists
         if current_block:
             gpu_blocks.append(current_block)
-        
+
         if gpu_blocks:
             print("\nAvailable GPU IDs:")
             print("ID      In Use    Description")
             print("-------------------------------------")
-            
+
             for block in gpu_blocks:
                 # Extract device ID from the first line
                 device_id = block[0].split()[0]
                 description = block[0].split(':', 2)[2].strip()
-                
+
                 # Check if GPU is in use by examining Control line and Latency
                 in_use = False
                 for line in block:
@@ -463,7 +475,7 @@ def list_available_gpus() -> None:
                         in_use = True
                     elif 'Latency:' in line:
                         in_use = True
-                
+
                 status = "Yes" if in_use else "No"
                 print(f"{device_id}  {status:8}  {description}")
             print()
@@ -507,17 +519,19 @@ def main():
         manager.setup_instance(args)
     elif args.command == 'run':
         manager = DStackManager()
-        config = host_api.ServerConfig(vm_dir=args.dir, kp_address="127.0.0.1", kp_port=args.kp_port)
+        config = host_api.ServerConfig(
+            vm_dir=args.dir, kp_address="127.0.0.1", kp_port=args.kp_port)
         api, host_port = host_api.create_http_server(config)
         print(f"Starting HTTP server on localhost:{host_port}")
         thread = threading.Thread(target=api.serve_forever, daemon=True)
         thread.start()
-        manager.run_instance(args.dir, host_port, memory=args.memory, vcpus=args.vcpus, imgdir=args.imgdir, pin_numa=args.pin_numa, hugepage=args.hugepage)
+        manager.run_instance(args.dir, host_port, memory=args.memory, vcpus=args.vcpus,
+                             imgdir=args.imgdir, pin_numa=args.pin_numa, hugepage=args.hugepage)
     elif args.command == 'lsgpu':
         list_available_gpus()
     else:
         parser.print_help()
 
+
 if __name__ == '__main__':
     main()
-
