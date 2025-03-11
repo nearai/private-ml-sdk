@@ -63,6 +63,7 @@ class VMConfig:
     memory: int
     disk_size: int
     image: str
+    image_path: str
     port_map: List[PortMap]
     created_at_ms: int
 
@@ -75,6 +76,7 @@ class VMConfig:
             "memory": self.memory,
             "disk_size": self.disk_size,
             "image": self.image,
+            "image_path": self.image_path,
             "port_map": [p.to_dict() for p in self.port_map],
             "created_at_ms": self.created_at_ms
         }
@@ -136,7 +138,6 @@ def load_configs_merged(config_paths):
 class DStackConfig:
     """Configuration for DStack client."""
     docker_registry: Optional[str] = None
-    image_path: str = './images'
     default_image_name: str = ''
     qemu_path: str = 'qemu-system-x86_64'
 
@@ -150,7 +151,6 @@ class DStackConfig:
             return fallback
         me = cls()
         me.docker_registry = cfg_get('docker', 'registry', cls.docker_registry)
-        me.image_path = os.path.abspath(cfg_get('image', 'path', cls.image_path))
         me.default_image_name = cfg_get('image', 'default', cls.default_image_name)
         me.qemu_path = cfg_get('qemu', 'path', cls.qemu_path)
         return me
@@ -160,10 +160,6 @@ class DStackManager:
     def __init__(self):
         self.run_path = os.path.abspath(os.getenv('RUN_PATH', './vms'))
         self.config = DStackConfig.load()
-
-    def get_default_image_path(self) -> str:
-        """Get the full default image path."""
-        return os.path.join(self.config.image_path, self.config.default_image_name)
 
     def _generate_instance_id(self) -> str:
         """Generate a random instance ID."""
@@ -196,7 +192,7 @@ class DStackManager:
         """Create necessary directories."""
         if os.path.exists(work_dir):
             raise FileExistsError(f"The instance already exists at {work_dir}")
-        
+
         shared_dir = os.path.join(work_dir, 'shared')
         certs_dir = os.path.join(shared_dir, 'certs')
         os.makedirs(shared_dir, exist_ok=True)
@@ -240,13 +236,13 @@ class DStackManager:
             # Generate instance ID if work_dir not provided
             instance_id = os.path.basename(args.dir) if args.dir else self._generate_instance_id()
             work_dir = args.dir or os.path.join(self.run_path, instance_id)
-            
+
             # Create directories
             shared_dir, certs_dir = self._create_directories(work_dir)
-            
+
             # Read compose file
             compose_content = self._read_compose_file(args.compose_file)
-            
+
             # Create app-compose.json
             app_compose = {
                 "manifest_version": 1,
@@ -259,10 +255,8 @@ class DStackManager:
             }
             with open(os.path.join(shared_dir, 'app-compose.json'), 'w') as f:
                 json.dump(app_compose, f, indent=4)
-
             # Read image metadata and create config.json
-            image_path = args.image or self.get_default_image_path()
-            rootfs_hash = self._read_image_metadata(image_path)
+            rootfs_hash = self._read_image_metadata(args.image)
             with open(os.path.join(shared_dir, '.sys-config.json'), 'w') as f:
                 config = {
                     "rootfs_hash": rootfs_hash,
@@ -286,11 +280,12 @@ class DStackManager:
                 gpu=args.gpu or [],
                 memory=memory,
                 disk_size=disk_size,
-                image=os.path.basename(image_path.rstrip('/')),
+                image_path=args.image,
+                image=os.path.basename(args.image.rstrip('/')),
                 port_map=port_map,
                 created_at_ms=int(datetime.now().timestamp() * 1000)
             )
-            
+
             with open(os.path.join(work_dir, 'vm-manifest.json'), 'w') as f:
                 json.dump(vm_config.to_dict(), f, indent=4)
 
@@ -300,7 +295,7 @@ class DStackManager:
             logger.error(f"Failed to setup instance: {str(e)}")
             raise
 
-    def run_instance(self, vm_dir: str, host_port: int, memory: Optional[str] = None, vcpus: Optional[int] = None) -> None:
+    def run_instance(self, vm_dir: str, host_port: int, memory: Optional[str] = None, vcpus: Optional[int] = None, imgdir: Optional[str] = None, pin_numa: bool = False, hugepage: bool = False) -> None:
         """Run a VM instance from the specified directory.
 
         Args:
@@ -316,7 +311,7 @@ class DStackManager:
             manifest = json.load(f)
 
         # Get image path and metadata
-        image_path = os.path.join(self.config.image_path, manifest['image'])
+        image_path = manifest.get('image_path') or os.path.join(imgdir, manifest['image'])
         img_metadata_path = os.path.join(image_path, 'metadata.json')
 
         # Update config.json with host API URL and port
@@ -327,7 +322,7 @@ class DStackManager:
         config['host_vsock_port'] = host_port
         with open(config_file, 'w') as f:
             json.dump(config, f, indent=4)
-        
+
         if not os.path.exists(img_metadata_path):
             raise ValueError(f"Image metadata not found at {img_metadata_path}")
 
@@ -342,7 +337,7 @@ class DStackManager:
 
         vda = os.path.join(vm_dir, 'hda.img')
         config_dir = os.path.join(vm_dir, 'shared')
-        
+
         # Create disk if it doesn't exist
         if not os.path.exists(vda):
             subprocess.run(['qemu-img', 'create', '-f', 'qcow2', vda, f"{disk_size}G"], check=True)
@@ -399,6 +394,16 @@ class DStackManager:
             ])
         # Add kernel command line
         cmd.extend(['-append', img_metadata['cmdline']])
+
+        if pin_numa and len(gpus) == 1:
+            numa_node = subprocess.run(['cat', f'/sys/bus/pci/devices/0000:{gpus[0]}/numa_node'], capture_output=True, text=True).stdout.strip()
+            cpus = subprocess.run(['cat', f'/sys/devices/system/node/node{numa_node}/cpulist'], capture_output=True, text=True).stdout.strip()
+            cmd = ['taskset', '-c', cpus] + cmd
+            if hugepage:
+                cmd.extend([
+                    '-numa', f'node,nodeid=0,cpus=0-{vcpu_count-1},memdev=mem0',
+                    '-object', f'memory-backend-file,id=mem0,size={mem},mem-path=/dev/hugepages,share=on,prealloc=yes,host-nodes={numa_node},policy=bind',
+                ])
 
         print(" ".join(cmd))
         # Run the command
@@ -480,7 +485,6 @@ def main():
     setup_parser.add_argument('-d', '--disk', type=str, default='20G', help='Disk size (e.g., 20G)')
     setup_parser.add_argument('-g', '--gpu', type=str, action='append', help='GPU device')
     setup_parser.add_argument('-p', '--port', action='append', type=str, help='Port mapping in format: protocol[:address]:from:to')
-    setup_parser.add_argument('--no-fde', action='store_true', help='Disable Full Disk Encryption')
     setup_parser.add_argument('--local-key-provider', action='store_true', help='Enable local key provider')
 
     # Start command
@@ -488,7 +492,10 @@ def main():
     start_parser.add_argument('dir', type=str, help='Work directory')
     start_parser.add_argument('-m', '--memory', type=str, help='Memory size (e.g. 2G, 512M)')
     start_parser.add_argument('-c', '--vcpus', type=int, help='Number of virtual CPUs')
+    start_parser.add_argument('--imgdir', type=str, help='The image directory')
     start_parser.add_argument('--kp-port', type=int, default=3443, help='The key provider listening port')
+    start_parser.add_argument('--pin-numa', type=bool, default=False, help='Pin the guest to given NUMA')
+    start_parser.add_argument('--hugepage', type=bool, default=False, help='Enable pre-allocate on hugepage. Must also --pin-numa')
 
     # List Gpus command
     subparsers.add_parser('lsgpu', help='List available GPUs')
@@ -505,7 +512,7 @@ def main():
         print(f"Starting HTTP server on localhost:{host_port}")
         thread = threading.Thread(target=api.serve_forever, daemon=True)
         thread.start()
-        manager.run_instance(args.dir, host_port, memory=args.memory, vcpus=args.vcpus)
+        manager.run_instance(args.dir, host_port, memory=args.memory, vcpus=args.vcpus, imgdir=args.imgdir, pin_numa=args.pin_numa, hugepage=args.hugepage)
     elif args.command == 'lsgpu':
         list_available_gpus()
     else:
