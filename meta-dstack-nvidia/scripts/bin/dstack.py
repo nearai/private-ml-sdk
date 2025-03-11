@@ -192,7 +192,7 @@ class DStackManager:
         """Create necessary directories."""
         if os.path.exists(work_dir):
             raise FileExistsError(f"The instance already exists at {work_dir}")
-        
+
         shared_dir = os.path.join(work_dir, 'shared')
         certs_dir = os.path.join(shared_dir, 'certs')
         os.makedirs(shared_dir, exist_ok=True)
@@ -236,13 +236,13 @@ class DStackManager:
             # Generate instance ID if work_dir not provided
             instance_id = os.path.basename(args.dir) if args.dir else self._generate_instance_id()
             work_dir = args.dir or os.path.join(self.run_path, instance_id)
-            
+
             # Create directories
             shared_dir, certs_dir = self._create_directories(work_dir)
-            
+
             # Read compose file
             compose_content = self._read_compose_file(args.compose_file)
-            
+
             # Create app-compose.json
             app_compose = {
                 "manifest_version": 1,
@@ -285,7 +285,7 @@ class DStackManager:
                 port_map=port_map,
                 created_at_ms=int(datetime.now().timestamp() * 1000)
             )
-            
+
             with open(os.path.join(work_dir, 'vm-manifest.json'), 'w') as f:
                 json.dump(vm_config.to_dict(), f, indent=4)
 
@@ -322,7 +322,7 @@ class DStackManager:
         config['host_vsock_port'] = host_port
         with open(config_file, 'w') as f:
             json.dump(config, f, indent=4)
-        
+
         if not os.path.exists(img_metadata_path):
             raise ValueError(f"Image metadata not found at {img_metadata_path}")
 
@@ -337,7 +337,7 @@ class DStackManager:
 
         vda = os.path.join(vm_dir, 'hda.img')
         config_dir = os.path.join(vm_dir, 'shared')
-        
+
         # Create disk if it doesn't exist
         if not os.path.exists(vda):
             subprocess.run(['qemu-img', 'create', '-f', 'qcow2', vda, f"{disk_size}G"], check=True)
@@ -416,16 +416,59 @@ class DStackManager:
 def list_available_gpus() -> None:
     """List available NVIDIA GPUs."""
     try:
-        result = subprocess.run(['lspci'], capture_output=True, text=True)
-        gpu_lines = [line for line in result.stdout.split('\n') if 'NVIDIA' in line]
-        if gpu_lines:
+        # Run lspci with verbose output to get detailed information
+        result = subprocess.run(['lspci', '-vvk'], capture_output=True, text=True)
+        output_lines = result.stdout.split('\n')
+        
+        # Find all GPU entries and their details
+        gpu_blocks = []
+        current_block = []
+        in_gpu_block = False
+        
+        for line in output_lines:
+            if 'NVIDIA' in line and '3D controller' in line:
+                # Start of a new GPU block
+                if current_block:
+                    gpu_blocks.append(current_block)
+                current_block = [line]
+                in_gpu_block = True
+            elif in_gpu_block:
+                if line.strip() == '' or (line[0] != '\t' and line[0] != ' ' and len(current_block) > 1):
+                    # End of the current block
+                    gpu_blocks.append(current_block)
+                    current_block = []
+                    in_gpu_block = False
+                else:
+                    # Continue adding lines to the current block
+                    current_block.append(line)
+        
+        # Add the last block if it exists
+        if current_block:
+            gpu_blocks.append(current_block)
+        
+        if gpu_blocks:
             print("\nAvailable GPU IDs:")
-            print("ID      Description")
-            for line in gpu_lines:
-                print(line)
+            print("ID      In Use    Description")
+            print("-------------------------------------")
+            
+            for block in gpu_blocks:
+                # Extract device ID from the first line
+                device_id = block[0].split()[0]
+                description = block[0].split(':', 2)[2].strip()
+                
+                # Check if GPU is in use by examining Control line and Latency
+                in_use = False
+                for line in block:
+                    if 'Control:' in line and 'I/O+' in line and 'BusMaster+' in line:
+                        in_use = True
+                    elif 'Latency:' in line:
+                        in_use = True
+                
+                status = "Yes" if in_use else "No"
+                print(f"{device_id}  {status:8}  {description}")
             print()
-    except subprocess.SubprocessError:
-        logger.warning("Could not list GPU devices")
+    except subprocess.SubprocessError as e:
+        logger.warning(f"Could not list GPU devices: {str(e)}")
 
 
 def main():
