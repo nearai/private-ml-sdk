@@ -1,6 +1,10 @@
 #!/bin/bash
 
+# Default version
+VERSION=${1:-latest}
+
+# Build the Docker image with the specified version
 docker build \
     -f docker/Dockerfile \
-    -t 0xii/vllm-proxy:0.2.5 \
+    -t vllm-proxy:$VERSION \
     .
