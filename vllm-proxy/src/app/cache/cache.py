@@ -10,6 +10,9 @@ from .redis import RedisCache
 CHAT_CACHE_EXPIRATION = int(
     os.getenv("CHAT_CACHE_EXPIRATION", "1200")
 )  # 20 minutes by default
+MODEL_NAME = os.getenv("MODEL_NAME", None)
+if not MODEL_NAME:
+    raise ValueError("MODEL_NAME is not set")
 
 CHAT_PREFIX = "chat"
 ATTESTATION_PREFIX = "attestation"
@@ -24,7 +27,7 @@ class ChatCache:
 
     def _get_key(self, prefix: str, key: str) -> str:
         """Generate cache key with prefix"""
-        return f"{prefix}:{key}"
+        return f"{MODEL_NAME}:{prefix}:{key}"
 
     def set_chat(self, chat_id: str, chat: str) -> bool:
         """Set chat history by chat_id
@@ -72,7 +75,9 @@ class ChatCache:
     def get_attestations(self) -> list:
         """Get all attestations"""
         try:
-            values = self.redis_cache.get_all_values(ATTESTATION_PREFIX)
+            values = self.redis_cache.get_all_values(
+                f"{MODEL_NAME}:{ATTESTATION_PREFIX}"
+            )
             return [json.loads(value) for value in values]
         except Exception as e:
             log.error(f"Error getting attestation from cache: {e}")
