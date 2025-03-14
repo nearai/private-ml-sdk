@@ -41,6 +41,8 @@ OVMF_FIRMWARE=${BB_BUILD_DIR}/tmp/deploy/images/tdx/ovmf.fd
 ROOTFS_HASH=$(sha256sum "$ROOTFS_IMAGE" | awk '{print $1}')
 DSTACK_VERSION=$(bitbake-getvar --value DISTRO_VERSION)
 OUTPUT_DIR=${OUTPUT_DIR:-"${DIST_DIR}/${DIST_NAME}-${DSTACK_VERSION}"}
+OUTPUT_DIR=$(realpath ${OUTPUT_DIR})
+DSTACK_TAR_EXCLUDE_ROOTFS_CPIO=${DSTACK_TAR_EXCLUDE_ROOTFS_CPIO:-1}
 
 mkdir -p ${WORK_DIR}
 
@@ -116,6 +118,6 @@ if [ x$DSTACK_TAR_RELEASE = x1 ]; then
     if [ x$DSTACK_TAR_EXCLUDE_ROOTFS_CPIO = x1 ]; then
         TAR_ARGS=--exclude=rootfs.cpio
     fi
-    (cd ${OUTPUT_DIR} && tar -czf ${OUTPUT_DIR}.tar.gz ${TAR_ARGS} .)
+    (cd $(dirname ${OUTPUT_DIR}) && tar -czvf ${OUTPUT_DIR}.tar.gz ${TAR_ARGS} $(basename $OUTPUT_DIR))
     echo
 fi
