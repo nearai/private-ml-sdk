@@ -1,10 +1,12 @@
 #!/bin/bash
 
-# Default version
-VERSION=${1:-latest}
+# Default image name
+IMAGE=${1:-vllm-proxy:latest}
+
+echo "Image: $IMAGE"
 
 # Build the Docker image with the specified version
 docker build \
     -f docker/Dockerfile \
-    -t vllm-proxy:$VERSION \
+    -t $IMAGE \
     .

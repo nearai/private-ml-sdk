@@ -1,0 +1,32 @@
+services:
+  redis:
+    image: redis:7.4-alpine
+    container_name: redis_production
+    restart: always
+    ports:
+      - "${LISTEN_IP}:6379:6379" # Use environment variable for IP
+    volumes:
+      - /opt/dstack/redis/redis_data:/data # Persist Redis data to a volume
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD} # Set a strong password for Redis
+      - REDIS_MAXMEMORY=2gb # Limit memory usage to prevent OOM issues
+      - REDIS_MAXMEMORY_POLICY=allkeys-lru # Evict least recently used keys when memory is full
+    command: redis-server --save 20 1 --loglevel warning --requirepass ${REDIS_PASSWORD}
+    sysctls:
+      - net.core.somaxconn=1024 # Increase the maximum number of connections
+    ulimits:
+      nofile:
+        soft: 65535 # Increase file descriptor limits
+        hard: 65535
+    security_opt:
+      - no-new-privileges:true # Prevent privilege escalation
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m" # Limit log size
+        max-file: "3" # Rotate logs after 3 files
+    networks:
+      - redis_network
+
+networks:
+  redis_network:

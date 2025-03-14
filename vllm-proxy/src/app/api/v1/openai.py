@@ -1,24 +1,21 @@
 import json
-import httpx
 import os
-
-from fastapi import APIRouter, Request, Header, HTTPException, Depends, BackgroundTasks
 from hashlib import sha256
-from fastapi.responses import StreamingResponse, JSONResponse
-from cachetools import TTLCache
 
-from app.quote.quote import ecdsa_quote, ed25519_quote, ECDSA, ED25519
-from app.api.response.response import ok, error, invalid_signing_algo
-from app.logger import log
+import httpx
 from app.api.helper.auth import verify_authorization_header
+from app.api.response.response import error, invalid_signing_algo
+from app.cache.cache import cache
+from app.logger import log
+from app.quote.quote import ECDSA, ED25519, ecdsa_quote, ed25519_quote
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
+from fastapi.responses import JSONResponse, StreamingResponse, PlainTextResponse
 
 router = APIRouter(tags=["openai"])
 
 VLLM_URL = "http://vllm:8000/v1/chat/completions"
+VLLM_METRICS_URL = "http://vllm:8000/metrics"
 TIMEOUT = 60 * 10
-
-# Cache for storing full request-response pairs (TTL of 20 minutes)
-cache = TTLCache(maxsize=1000, ttl=1200)
 
 
 def sign_request(request: dict, response: str):
@@ -28,6 +25,16 @@ def sign_request(request: dict, response: str):
 
 def hash(payload: str):
     return sha256(payload.encode()).hexdigest()
+
+
+def sign_chat(text: str):
+    return dict(
+        text=text,
+        signature_ecdsa=ecdsa_quote.sign(text),
+        signing_address_ecdsa=ecdsa_quote.signing_address,
+        signature_ed25519=ed25519_quote.sign(text),
+        signing_address_ed25519=ed25519_quote.signing_address,
+    )
 
 
 async def stream_vllm_response(request_body: bytes):
@@ -52,15 +59,21 @@ async def stream_vllm_response(request_body: bytes):
                     chunk_data = json.loads(data)
                     chat_id = chunk_data.get("id")
                 except Exception as e:
-                    raise Exception(f"Failed to parse the first chunk: {e}")
+                    error_message = f"Failed to parse the first chunk: {e}"
+                    log.error(error_message)
+                    raise Exception(error_message)
             yield chunk
 
         response_sha256 = h.hexdigest()
         # Cache the full request and response using the extracted cache key
         if chat_id:
-            cache[chat_id] = f"{request_sha256}:{response_sha256}"
+            cache.set_chat(
+                chat_id, json.dumps(sign_chat(f"{request_sha256}:{response_sha256}"))
+            )
         else:
-            raise Exception("Chat id could not be extracted from the response")
+            error_message = "Chat id could not be extracted from the response"
+            log.error(error_message)
+            raise Exception(error_message)
 
     client = httpx.AsyncClient(timeout=httpx.Timeout(TIMEOUT))
     # Forward the request to the vllm backend
@@ -101,7 +114,9 @@ async def non_stream_vllm_response(request_body: bytes):
         if chat_id:
             response_text = json.dumps(response_data)
             response_sha256 = sha256(response_text.encode()).hexdigest()
-            cache[chat_id] = f"{request_sha256}:{response_sha256}"
+            cache.set_chat(
+                chat_id, json.dumps(sign_chat(f"{request_sha256}:{response_sha256}"))
+            )
         else:
             raise Exception("Chat id could not be extracted from the response")
 
@@ -112,18 +127,31 @@ async def non_stream_vllm_response(request_body: bytes):
 @router.get("/attestation/report", dependencies=[Depends(verify_authorization_header)])
 async def attestation_report(request: Request, signing_algo: str = None):
     signing_algo = ECDSA if signing_algo is None else signing_algo
-    if signing_algo == ECDSA:
-        quote = ecdsa_quote
-    elif signing_algo == ED25519:
-        quote = ed25519_quote
-    else:
+    if signing_algo not in [ECDSA, ED25519]:
         return invalid_signing_algo()
 
-    return dict(
-        signing_address=quote.signing_address,
-        intel_quote=quote.intel_quote,
-        nvidia_payload=quote.nvidia_payload,
+    data = dict(
+        ecdsa=dict(
+            signing_address=ecdsa_quote.signing_address,
+            intel_quote=ecdsa_quote.intel_quote,
+            nvidia_payload=ecdsa_quote.nvidia_payload,
+        ),
+        ed25519=dict(
+            signing_address=ed25519_quote.signing_address,
+            intel_quote=ed25519_quote.intel_quote,
+            nvidia_payload=ed25519_quote.nvidia_payload,
+        ),
     )
+    cache.set_attestation(ecdsa_quote.signing_address, data)
+
+    resp = data[signing_algo]
+    try:
+        attestations = cache.get_attestations() or []
+        resp["all_attestations"] = [a[signing_algo] for a in attestations]
+        return resp
+    except Exception as e:
+        log.error(f"Error parsing the attestations in cache: {e}")
+        return resp
 
 
 # VLLM Chat completions
@@ -150,22 +178,42 @@ async def chat_completions(request: Request):
 # Get signature for chat_id of chat history
 @router.get("/signature/{chat_id}", dependencies=[Depends(verify_authorization_header)])
 async def signature(request: Request, chat_id: str, signing_algo: str = None):
-    if chat_id not in cache:
+    cache_value = cache.get_chat(chat_id)
+    if cache_value is None:
         return error("Chat id not found or expired", "chat_id_not_found")
 
-    # Retrieve the cached request and response
-    chat_data = cache[chat_id]
     signature = None
     signing_algo = ECDSA if signing_algo is None else signing_algo
+
+    # Retrieve the cached request and response
+    try:
+        value = json.loads(cache_value)
+    except Exception as e:
+        return error(f"Failed to parse the cache value: {e}", "invalid_cache_value")
+
+    signing_address = None
     if signing_algo == ECDSA:
-        signature = ecdsa_quote.sign(chat_data)
+        signature = value.get("signature_ecdsa")
+        signing_address = value.get("signing_address_ecdsa")
     elif signing_algo == ED25519:
-        signature = ed25519_quote.sign(chat_data)
+        signature = value.get("signature_ed25519")
+        signing_address = value.get("signing_address_ed25519")
     else:
         return invalid_signing_algo()
 
     return dict(
-        text=chat_data,
+        text=value.get("text"),
         signature=signature,
+        signing_address=signing_address,
         signing_algo=signing_algo,
     )
+
+
+# Metrics of vLLM instance
+@router.get("/metrics")
+async def metrics(request: Request):
+    async with httpx.AsyncClient(timeout=httpx.Timeout(TIMEOUT)) as client:
+        response = await client.get(VLLM_METRICS_URL)
+        if response.status_code != 200:
+            raise HTTPException(status_code=response.status_code, detail=response.text)
+        return PlainTextResponse(response.text)
