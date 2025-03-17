@@ -41,7 +41,6 @@ OVMF_FIRMWARE=${BB_BUILD_DIR}/tmp/deploy/images/tdx/ovmf.fd
 ROOTFS_HASH=$(sha256sum "$ROOTFS_IMAGE" | awk '{print $1}')
 DSTACK_VERSION=$(bitbake-getvar --value DISTRO_VERSION)
 OUTPUT_DIR=${OUTPUT_DIR:-"${DIST_DIR}/${DIST_NAME}-${DSTACK_VERSION}"}
-OUTPUT_DIR=$(realpath ${OUTPUT_DIR})
 DSTACK_TAR_EXCLUDE_ROOTFS_CPIO=${DSTACK_TAR_EXCLUDE_ROOTFS_CPIO:-1}
 
 mkdir -p ${WORK_DIR}
@@ -114,6 +113,7 @@ find . -type f -not -name md5sum.txt -not -name sha256sum.txt -exec sha256sum {}
 popd
 
 if [ x$DSTACK_TAR_RELEASE = x1 ]; then
+    OUTPUT_DIR=$(realpath ${OUTPUT_DIR})
     echo "Archiving the output directory to ${OUTPUT_DIR}.tar.gz"
     if [ x$DSTACK_TAR_EXCLUDE_ROOTFS_CPIO = x1 ]; then
         TAR_ARGS=--exclude=rootfs.cpio
