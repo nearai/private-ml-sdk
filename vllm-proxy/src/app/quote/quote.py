@@ -1,20 +1,18 @@
-import web3
-import eth_utils
 import base64
-import hashlib
 import json
-import eth_account
 import os
 
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+import eth_utils
+import web3
 from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from dstack_sdk import TappdClient
-from verifier import cc_admin
 from eth_account.messages import encode_defunct
-
+from verifier import cc_admin
 
 ED25519 = "ed25519"
 ECDSA = "ecdsa"
+GPU_ARCH = "HOPPER"
 SIGNING_METHOD = os.getenv("SIGNING_METHOD", ED25519)
 
 
@@ -45,18 +43,10 @@ class Quote:
         else:
             raise ValueError("Unsupported signing method")
 
-        gpu_evidence = cc_admin.collect_gpu_evidence(self.public_key)[0]
-        gpu_report = gpu_evidence.get_attestation_report().hex()
-        gpu_cert_chain = gpu_evidence.CertificateChains.extract_gpu_cert_chain_base64(
-            gpu_evidence.CertificateChains.GpuAttestationCertificateChain
-        )
-
         self.intel_quote = self.get_quote(self.public_key)
-        self.nvidia_payload = self.build_payload(
-            self.signing_address,
-            gpu_report,
-            gpu_cert_chain,
-        )
+
+        gpu_evidence_list = cc_admin.collect_gpu_evidence_remote(self.public_key)
+        self.nvidia_payload = self.build_payload(self.public_key, gpu_evidence_list)
 
         return dict(
             intel_quote=self.intel_quote,
@@ -112,19 +102,12 @@ class Quote:
         signed_message = self.raw_acct.sign_message(encode_defunct(text=content))
         return f"0x{signed_message.signature.hex()}"
 
-    def build_payload(self, nonce, evidence, cert_chain):
-        data = dict()
-        data["nonce"] = nonce
-        data["arch"] = "HOPPER"
-
-        # Encode the evidence in Base64
-        encoded_evidence_bytes = evidence.encode("ascii")
-        encoded_evidence = base64.b64encode(encoded_evidence_bytes).decode("utf-8")
-        data["evidence_list"] = [
-            {"evidence": encoded_evidence, "certificate": str(cert_chain)}
-        ]
-        payload = json.dumps(data)
-        return payload
+    def build_payload(self, nonce, evidences):
+        """
+        A function that builds a payload with the given nonce and list of evidences.
+        """
+        data = {"nonce": nonce, "evidence_list": evidences, "arch": GPU_ARCH}
+        return json.dumps(data)
 
 
 ecdsa_quote = Quote(signing_method=ECDSA)
@@ -135,22 +118,20 @@ ed25519_quote.init()
 
 
 if __name__ == "__main__":
-    quote = Quote(signing_method=ED25519)
-    quote.init()
+    print("ECDSA quote:")
     print(
         dict(
-            signing_address=quote.signing_address,
-            intel_quote=quote.intel_quote,
-            nvidia_payload=quote.nvidia_payload,
+            signing_address=ecdsa_quote.signing_address,
+            intel_quote=ecdsa_quote.intel_quote,
+            nvidia_payload=ecdsa_quote.nvidia_payload,
         )
     )
 
-    quote2 = Quote(signing_method=ECDSA)
-    quote2.init()
+    print("ED25519 quote:")
     print(
         dict(
-            signing_address=quote2.signing_address,
-            intel_quote=quote2.intel_quote,
-            nvidia_payload=quote2.nvidia_payload,
+            signing_address=ed25519_quote.signing_address,
+            intel_quote=ed25519_quote.intel_quote,
+            nvidia_payload=ed25519_quote.nvidia_payload,
         )
     )
