@@ -286,10 +286,16 @@ download_image() {
     if [ -d $IMAGES_DIR/$BASENAME ]; then
         echo "Image already exists"
     else
-        mkdir -p $IMAGES_DIR/$BASENAME
+        mkdir -p $IMAGES_DIR/$BASENAME.tmp
         curl -L $URL -o $IMAGES_DIR/$BASENAME.tar.gz
-        tar -xvf $IMAGES_DIR/$BASENAME.tar.gz -C $IMAGES_DIR/$BASENAME
+        tar -xvf $IMAGES_DIR/$BASENAME.tar.gz -C $IMAGES_DIR/$BASENAME.tmp
         rm -f $IMAGES_DIR/$BASENAME.tar.gz
+        if [ -d $IMAGES_DIR/$BASENAME.tmp/$BASENAME ]; then
+            mv $IMAGES_DIR/$BASENAME.tmp/$BASENAME $IMAGES_DIR/$BASENAME
+            rm -rf $IMAGES_DIR/$BASENAME.tmp
+        else
+            mv $IMAGES_DIR/$BASENAME.tmp $IMAGES_DIR/$BASENAME
+        fi
     fi
 }
 
