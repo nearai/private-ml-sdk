@@ -15,6 +15,9 @@ CERBOT_WORKDIR=$RUN_DIR/certbot
 KMS_UPGRADE_REGISTRY_DIR=$RUN_DIR/kms/upgrade_registry
 KMS_CERT_LOG_DIR=$RUN_DIR/kms/cert_log/
 
+TPROXY_CERT=${TPROXY_CERT:-$CERTS_DIR/live/cert.pem}
+TPROXY_KEY=${TPROXY_KEY:-$CERTS_DIR/live/key.pem}
+
 CONFIG_FILE=./build-config.sh
 
 check_config() {
@@ -67,12 +70,15 @@ TPROXY_WG_INTERFACE=tproxy-$USER
 TPROXY_WG_LISTEN_PORT=$(($BASE_PORT + 3))
 TPROXY_WG_IP=10.3.3.1
 TPROXY_SERVE_PORT=$(($BASE_PORT + 4))
+TPROXY_CERT=
+TPROXY_KEY=
 
 BIND_PUBLIC_IP=0.0.0.0
 
 TPROXY_PUBLIC_DOMAIN=app.kvin.wang
 
 # for certbot
+CERTBOT_ENABLED=false
 CF_API_TOKEN=
 CF_ZONE_ID=
 ACME_URL=https://acme-staging-v02.api.letsencrypt.org/directory
@@ -172,7 +178,7 @@ run_as_tapp = false
 enabled = false
 
 [core.certbot]
-enabled = true
+enabled = $CERTBOT_ENABLED
 # Path to the working directory
 workdir = "$CERBOT_WORKDIR"
 # ACME server URL
@@ -197,15 +203,15 @@ private_key = "$TPROXY_WG_KEY"
 public_key = "$TPROXY_WG_PUBKEY"
 listen_port = $TPROXY_WG_LISTEN_PORT
 ip = "$TPROXY_WG_IP/24"
-reserved_net = "$TPROXY_WG_IP/31"
+reserved_net = ["$TPROXY_WG_IP/31"]
 client_ip_range = "$TPROXY_WG_IP/24"
 config_path = "$RUN_DIR/wg.conf"
 interface = "$TPROXY_WG_INTERFACE"
 endpoint = "10.0.2.2:$TPROXY_WG_LISTEN_PORT"
 
 [core.proxy]
-cert_chain = "$CERBOT_WORKDIR/live/cert.pem"
-cert_key = "$CERBOT_WORKDIR/live/key.pem"
+cert_chain = "$TPROXY_CERT"
+cert_key = "$TPROXY_KEY"
 base_domain = "$TPROXY_PUBLIC_DOMAIN"
 listen_addr = "$BIND_PUBLIC_IP"
 listen_port = $TPROXY_SERVE_PORT
