@@ -8,7 +8,7 @@ inherit module
 REPO_ROOT = "${THISDIR}/../../.."
 
 SRC_DIR = '${REPO_ROOT}/dstack/mod-tdx-guest'
-SRC_URI = 'file://${REPO_ROOT}/dstack'
+SRC_URI = 'file://${REPO_ROOT}/dstack/mod-tdx-guest'
 SRCREV = "${DSTACK_SRC_REV}"
 
 S = "${WORKDIR}/${SRC_DIR}"
