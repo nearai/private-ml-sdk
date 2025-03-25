@@ -9,12 +9,14 @@ from app.cache.cache import cache
 from app.logger import log
 from app.quote.quote import ECDSA, ED25519, ecdsa_quote, ed25519_quote
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
-from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse
+from fastapi.responses import (JSONResponse, PlainTextResponse,
+                               StreamingResponse)
 
 router = APIRouter(tags=["openai"])
 
 VLLM_BASE_URL = "http://vllm:8000"
 VLLM_URL = f"{VLLM_BASE_URL}/v1/chat/completions"
+VLLM_COMPLETIONS_URL = f"{VLLM_BASE_URL}/v1/completions"
 VLLM_METRICS_URL = f"{VLLM_BASE_URL}/metrics"
 VLLM_MODELS_URL = f"{VLLM_BASE_URL}/v1/models"
 TIMEOUT = 60 * 10
@@ -41,7 +43,9 @@ def sign_chat(text: str):
     )
 
 
-async def stream_vllm_response(request_body: bytes, modified_request_body: bytes):
+async def stream_vllm_response(
+    url: str, request_body: bytes, modified_request_body: bytes
+):
     """
     Handle streaming vllm request
     Args:
@@ -84,7 +88,7 @@ async def stream_vllm_response(request_body: bytes, modified_request_body: bytes
 
     client = httpx.AsyncClient(timeout=httpx.Timeout(TIMEOUT), headers=COMMON_HEADERS)
     # Forward the request to the vllm backend
-    req = client.build_request("POST", VLLM_URL, content=modified_request_body)
+    req = client.build_request("POST", url, content=modified_request_body)
     response = await client.send(req, stream=True)
     # If not 200, return the error response directly without streaming
     if response.status_code != 200:
@@ -102,7 +106,9 @@ async def stream_vllm_response(request_body: bytes, modified_request_body: bytes
 
 
 # Function to handle non-streaming responses
-async def non_stream_vllm_response(request_body: bytes, modified_request_body: bytes):
+async def non_stream_vllm_response(
+    url: str, request_body: bytes, modified_request_body: bytes
+):
     """
     Handle non-streaming responses
     Args:
@@ -116,7 +122,7 @@ async def non_stream_vllm_response(request_body: bytes, modified_request_body: b
     async with httpx.AsyncClient(
         timeout=httpx.Timeout(TIMEOUT), headers=COMMON_HEADERS
     ) as client:
-        response = await client.post(VLLM_URL, content=modified_request_body)
+        response = await client.post(url, content=modified_request_body)
         if response.status_code != 200:
             raise HTTPException(status_code=response.status_code, detail=response.text)
 
@@ -178,22 +184,40 @@ async def chat_completions(request: Request):
         "stream", False
     )  # Default to streaming if not specified
 
-    # Modify the request body to use the correct model path and lowercasemodel name
-    if "model" in request_json:
-        request_json["model"] = request_json["model"].lower()
-
-    # Set stream_options to include `usage` field if streaming
+    modified_request_body = json.dumps(request_json).encode("utf-8")
     if is_stream:
-        request_json["stream_options"] = {"include_usage": True}
+        # Create a streaming response
+        return await stream_vllm_response(VLLM_URL, request_body, modified_request_body)
+    else:
+        # Handle non-streaming response
+        response_data = await non_stream_vllm_response(
+            VLLM_URL, request_body, modified_request_body
+        )
+        return JSONResponse(content=response_data)
+
+
+# VLLM completions
+@router.post("/completions", dependencies=[Depends(verify_authorization_header)])
+async def completions(request: Request):
+    # Get the JSON body from the incoming request
+    request_body = await request.body()
+    request_json = json.loads(request_body)
+
+    # Check if the request is for streaming or non-streaming
+    is_stream = request_json.get(
+        "stream", False
+    )  # Default to streaming if not specified
 
     modified_request_body = json.dumps(request_json).encode("utf-8")
     if is_stream:
         # Create a streaming response
-        return await stream_vllm_response(request_body, modified_request_body)
+        return await stream_vllm_response(
+            VLLM_COMPLETIONS_URL, request_body, modified_request_body
+        )
     else:
         # Handle non-streaming response
         response_data = await non_stream_vllm_response(
-            request_body, modified_request_body
+            VLLM_COMPLETIONS_URL, request_body, modified_request_body
         )
         return JSONResponse(content=response_data)
 
