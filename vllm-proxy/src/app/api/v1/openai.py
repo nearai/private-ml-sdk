@@ -9,13 +9,14 @@ from app.cache.cache import cache
 from app.logger import log
 from app.quote.quote import ECDSA, ED25519, ecdsa_quote, ed25519_quote
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
-from fastapi.responses import (JSONResponse, PlainTextResponse,
-                               StreamingResponse)
+from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse
 
 router = APIRouter(tags=["openai"])
 
-VLLM_URL = "http://vllm:8000/v1/chat/completions"
-VLLM_METRICS_URL = "http://vllm:8000/metrics"
+VLLM_BASE_URL = "http://vllm:8000"
+VLLM_URL = f"{VLLM_BASE_URL}/v1/chat/completions"
+VLLM_METRICS_URL = f"{VLLM_BASE_URL}/metrics"
+VLLM_MODELS_URL = f"{VLLM_BASE_URL}/v1/models"
 TIMEOUT = 60 * 10
 
 COMMON_HEADERS = {"Content-Type": "application/json", "Accept": "application/json"}
@@ -239,3 +240,12 @@ async def metrics(request: Request):
         if response.status_code != 200:
             raise HTTPException(status_code=response.status_code, detail=response.text)
         return PlainTextResponse(response.text)
+
+
+@router.get("/models")
+async def models(request: Request):
+    async with httpx.AsyncClient(timeout=httpx.Timeout(TIMEOUT)) as client:
+        response = await client.get(VLLM_MODELS_URL)
+        if response.status_code != 200:
+            raise HTTPException(status_code=response.status_code, detail=response.text)
+        return JSONResponse(content=response.json())
