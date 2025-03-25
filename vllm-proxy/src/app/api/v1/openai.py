@@ -41,16 +41,16 @@ def sign_chat(text: str):
     )
 
 
-async def stream_vllm_response(raw_request_body: bytes, request_body: bytes):
+async def stream_vllm_response(request_body: bytes, modified_request_body: bytes):
     """
     Handle streaming vllm request
     Args:
-        raw_request_body: The original request body
-        request_body: The modified enhanced request body
+        request_body: The original request body
+        modified_request_body: The modified enhanced request body
     Returns:
         A streaming response
     """
-    request_sha256 = sha256(raw_request_body).hexdigest()
+    request_sha256 = sha256(request_body).hexdigest()
 
     chat_id = None
     h = sha256()
@@ -84,7 +84,7 @@ async def stream_vllm_response(raw_request_body: bytes, request_body: bytes):
 
     client = httpx.AsyncClient(timeout=httpx.Timeout(TIMEOUT), headers=COMMON_HEADERS)
     # Forward the request to the vllm backend
-    req = client.build_request("POST", VLLM_URL, content=request_body)
+    req = client.build_request("POST", VLLM_URL, content=modified_request_body)
     response = await client.send(req, stream=True)
     # If not 200, return the error response directly without streaming
     if response.status_code != 200:
@@ -102,21 +102,21 @@ async def stream_vllm_response(raw_request_body: bytes, request_body: bytes):
 
 
 # Function to handle non-streaming responses
-async def non_stream_vllm_response(raw_request_body: bytes, request_body: bytes):
+async def non_stream_vllm_response(request_body: bytes, modified_request_body: bytes):
     """
     Handle non-streaming responses
     Args:
-        raw_request_body: The original request body
-        request_body: The modified enhanced request body
+        request_body: The original request body
+        modified_request_body: The modified enhanced request body
     Returns:
         The response data
     """
-    request_sha256 = sha256(raw_request_body).hexdigest()
+    request_sha256 = sha256(request_body).hexdigest()
 
     async with httpx.AsyncClient(
         timeout=httpx.Timeout(TIMEOUT), headers=COMMON_HEADERS
     ) as client:
-        response = await client.post(VLLM_URL, content=request_body)
+        response = await client.post(VLLM_URL, content=modified_request_body)
         if response.status_code != 200:
             raise HTTPException(status_code=response.status_code, detail=response.text)
 
@@ -175,7 +175,7 @@ async def chat_completions(request: Request):
 
     # Check if the request is for streaming or non-streaming
     is_stream = request_json.get(
-        "stream", True
+        "stream", False
     )  # Default to streaming if not specified
 
     # Modify the request body to use the correct model path and lowercasemodel name
