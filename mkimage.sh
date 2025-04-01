@@ -91,11 +91,16 @@ $Q makeiso ${WORK_DIR}/rootfs/ ${OUTPUT_DIR}/rootfs.iso
 
 GIT_REVISION=$(git rev-parse HEAD)
 echo "Generating metadata.json to ${OUTPUT_DIR}/metadata.json"
+
+KARG0="console=ttyS0 init=/init panic=1 systemd.unified_cgroup_hierarchy=0 pnpacpi=off"
+KARG1="mce=off oops=panic pci=noearly pci=nommconf random.trust_cpu=y random.trust_bootloader=n tsc=reliable no-kvmclock"
+KARG2="dstack.fde=1 dstack.rootfs_hash=$ROOTFS_HASH"
+
 cat <<EOF > ${OUTPUT_DIR}/metadata.json
 {
     "bios": "ovmf.fd",
     "kernel": "bzImage",
-    "cmdline": "console=ttyS0 init=/init panic=1 systemd.unified_cgroup_hierarchy=0 pnpacpi=off dstack.fde=1 dstack.rootfs_hash=$ROOTFS_HASH",
+    "cmdline": "$KARG0 $KARG1 $KARG2",
     "initrd": "initramfs.cpio.gz",
     "rootfs": "rootfs.iso",
     "rootfs_hash": "$ROOTFS_HASH",

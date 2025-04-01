@@ -16,6 +16,7 @@ IMAGE_INSTALL = "\
     wireguard-tools \
     curl \
     jq \
+    chrony \
     qemu-guest-agent \
 "
 

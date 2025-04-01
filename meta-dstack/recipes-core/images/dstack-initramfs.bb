@@ -13,6 +13,7 @@ PACKAGE_INSTALL = "\
     dstack-guest \
     curl \
     jq \
+    chrony \
 "
 
 # Do not pollute the initrd image with rootfs features
