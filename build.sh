@@ -96,7 +96,7 @@ EOF
         if [ -z "$TPROXY_SERVE_PORT" ]; then
             TPROXY_SERVE_PORT=${TPROXY_LISTEN_PORT1}
         fi
-        TAPPD_PORT=8090
+        AGENT_PORT=8090
     else
         mv build-config.sh.tpl $CONFIG_FILE
         echo "Config file $CONFIG_FILE created, please edit it to configure the build"
@@ -215,7 +215,7 @@ cert_key = "$TPROXY_KEY"
 base_domain = "$TPROXY_PUBLIC_DOMAIN"
 listen_addr = "$BIND_PUBLIC_IP"
 listen_port = $TPROXY_SERVE_PORT
-tappd_port = $TAPPD_PORT
+agent_port = $AGENT_PORT
 EOF
 
     # teepod
@@ -243,7 +243,7 @@ range = [
 [gateway]
 base_domain = "$TPROXY_PUBLIC_DOMAIN"
 port = $TPROXY_SERVE_PORT
-tappd_port = $TAPPD_PORT
+agent_port = $AGENT_PORT
 
 [host_api]
 port = $TEEPOD_VSOCK_LISTEN_PORT

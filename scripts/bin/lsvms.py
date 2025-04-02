@@ -60,11 +60,11 @@ def get_dashboard_url(config: dict, app_id: str) -> str:
     try:
         gateway = config.get('gateway', {})
         base_domain = gateway.get('base_domain')
-        tappd_port = gateway.get('tappd_port')
+        agent_port = gateway.get('agent_port')
         gateway_port = gateway.get('port')
 
-        if base_domain and tappd_port:
-            url = f"https://{app_id}-{tappd_port}.{base_domain}"
+        if base_domain and agent_port:
+            url = f"https://{app_id}-{agent_port}.{base_domain}"
             if gateway_port:
                 url += f":{gateway_port}"
             return url + "/"

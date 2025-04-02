@@ -43,5 +43,5 @@ ROOTFS_POSTPROCESS_COMMAND += "postprocess_initramfs;"
 postprocess_initramfs() {
     rm -rf ${IMAGE_ROOTFS}${sysconfdir}/init.d
     rm -rf ${IMAGE_ROOTFS}${systemd_system_unitdir}
-    rm -rf ${IMAGE_ROOTFS}${bindir}/tappd
+    rm -rf ${IMAGE_ROOTFS}${bindir}/dstack-guest-agent
 }
