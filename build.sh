@@ -15,8 +15,8 @@ CERBOT_WORKDIR=$RUN_DIR/certbot
 KMS_UPGRADE_REGISTRY_DIR=$RUN_DIR/kms/upgrade_registry
 KMS_CERT_LOG_DIR=$RUN_DIR/kms/cert_log/
 
-TPROXY_CERT=${TPROXY_CERT:-$CERTS_DIR/live/cert.pem}
-TPROXY_KEY=${TPROXY_KEY:-$CERTS_DIR/live/key.pem}
+GATEWAY_CERT=${GATEWAY_CERT:-$CERTS_DIR/live/cert.pem}
+GATEWAY_KEY=${GATEWAY_KEY:-$CERTS_DIR/live/key.pem}
 
 CONFIG_FILE=./build-config.sh
 
@@ -43,11 +43,11 @@ check_config() {
 
 require_config() {
     cat <<'EOF' >build-config.sh.tpl
-# DNS domain of kms rpc and tproxy rpc
+# DNS domain of kms rpc and dstack-gateway rpc
 # *.1022.kvin.wang resolves to 10.0.2.2 which is the IP of the host system
 # from CVMs point of view
 KMS_DOMAIN=kms.1022.kvin.wang
-TPROXY_DOMAIN=tproxy.1022.kvin.wang
+GATEWAY_DOMAIN=gateway.1022.kvin.wang
 
 # CIDs allocated to VMs start from this number of type unsigned int32
 TEEPOD_CID_POOL_START=20000
@@ -64,18 +64,18 @@ TEEPOD_PORT_MAPPING_ENABLED=false
 TEEPOD_VSOCK_LISTEN_PORT=$BASE_PORT
 
 KMS_RPC_LISTEN_PORT=$(($BASE_PORT + 1))
-TPROXY_RPC_LISTEN_PORT=$(($BASE_PORT + 2))
+GATEWAY_RPC_LISTEN_PORT=$(($BASE_PORT + 2))
 
-TPROXY_WG_INTERFACE=tproxy-$USER
-TPROXY_WG_LISTEN_PORT=$(($BASE_PORT + 3))
-TPROXY_WG_IP=10.3.3.1
-TPROXY_SERVE_PORT=$(($BASE_PORT + 4))
-TPROXY_CERT=
-TPROXY_KEY=
+GATEWAY_WG_INTERFACE=dgw-$USER
+GATEWAY_WG_LISTEN_PORT=$(($BASE_PORT + 3))
+GATEWAY_WG_IP=10.3.3.1
+GATEWAY_SERVE_PORT=$(($BASE_PORT + 4))
+GATEWAY_CERT=
+GATEWAY_KEY=
 
 BIND_PUBLIC_IP=0.0.0.0
 
-TPROXY_PUBLIC_DOMAIN=app.kvin.wang
+GATEWAY_PUBLIC_DOMAIN=app.kvin.wang
 
 # for certbot
 CERTBOT_ENABLED=false
@@ -93,8 +93,8 @@ EOF
         fi
         rm -f build-config.sh.tpl
 
-        if [ -z "$TPROXY_SERVE_PORT" ]; then
-            TPROXY_SERVE_PORT=${TPROXY_LISTEN_PORT1}
+        if [ -z "$GATEWAY_SERVE_PORT" ]; then
+            GATEWAY_SERVE_PORT=${GATEWAY_LISTEN_PORT1}
         fi
         AGENT_PORT=8090
     else
@@ -108,7 +108,7 @@ EOF
 build_host() {
     echo "Building binaries"
     (cd $DSTACK_DIR && cargo build --release --target-dir ${RUST_BUILD_DIR})
-    cp ${RUST_BUILD_DIR}/release/{tproxy,kms,teepod,certbot,ct_monitor,supervisor} .
+    cp ${RUST_BUILD_DIR}/release/{dstack-gateway,kms,teepod,supervisor} .
 }
 
 # Step 2: build guest images
@@ -124,8 +124,8 @@ build_guest() {
 
 build_cfg() {
     echo "Building config files"
-    TPROXY_WG_KEY=$(wg genkey)
-    TPROXY_WG_PUBKEY=$(echo $TPROXY_WG_KEY | wg pubkey)
+    GATEWAY_WG_KEY=$(wg genkey)
+    GATEWAY_WG_PUBKEY=$(echo $GATEWAY_WG_KEY | wg pubkey)
     # kms
     cat <<EOF >kms.toml
 log_level = "info"
@@ -155,23 +155,23 @@ port = $KMS_RPC_LISTEN_PORT
 auto_bootstrap_domain = "$KMS_DOMAIN"
 EOF
 
-    # tproxy
-    cat <<EOF >tproxy.toml
+    # dstack-gateway
+    cat <<EOF >gateway.toml
 log_level = "info"
 address = "127.0.0.1"
-port = $TPROXY_RPC_LISTEN_PORT
+port = $GATEWAY_RPC_LISTEN_PORT
 
 [tls]
-key = "$CERTS_DIR/tproxy-rpc.key"
-certs = "$CERTS_DIR/tproxy-rpc.cert"
+key = "$CERTS_DIR/gateway-rpc.key"
+certs = "$CERTS_DIR/gateway-rpc.cert"
 
 [tls.mutual]
-ca_certs = "$CERTS_DIR/tproxy-ca.cert"
+ca_certs = "$CERTS_DIR/gateway-ca.cert"
 mandatory = false
 
 [core]
 kms_url = "https://localhost:$KMS_RPC_LISTEN_PORT"
-rpc_domain = "$TPROXY_DOMAIN"
+rpc_domain = "$GATEWAY_DOMAIN"
 run_as_tapp = false
 
 [core.sync]
@@ -190,7 +190,7 @@ cf_zone_id = "$CF_ZONE_ID"
 # Auto set CAA record
 auto_set_caa = true
 # Domain to issue certificates for
-domain = "*.$TPROXY_PUBLIC_DOMAIN"
+domain = "*.$GATEWAY_PUBLIC_DOMAIN"
 # Check renewal interval
 renew_interval = "30m"
 # Number of days before expiration to trigger renewal
@@ -199,22 +199,22 @@ renew_days_before = "10d"
 renew_timeout = "10m"
 
 [core.wg]
-private_key = "$TPROXY_WG_KEY"
-public_key = "$TPROXY_WG_PUBKEY"
-listen_port = $TPROXY_WG_LISTEN_PORT
-ip = "$TPROXY_WG_IP/24"
-reserved_net = ["$TPROXY_WG_IP/31"]
-client_ip_range = "$TPROXY_WG_IP/24"
+private_key = "$GATEWAY_WG_KEY"
+public_key = "$GATEWAY_WG_PUBKEY"
+listen_port = $GATEWAY_WG_LISTEN_PORT
+ip = "$GATEWAY_WG_IP/24"
+reserved_net = ["$GATEWAY_WG_IP/31"]
+client_ip_range = "$GATEWAY_WG_IP/24"
 config_path = "$RUN_DIR/wg.conf"
-interface = "$TPROXY_WG_INTERFACE"
-endpoint = "10.0.2.2:$TPROXY_WG_LISTEN_PORT"
+interface = "$GATEWAY_WG_INTERFACE"
+endpoint = "10.0.2.2:$GATEWAY_WG_LISTEN_PORT"
 
 [core.proxy]
-cert_chain = "$TPROXY_CERT"
-cert_key = "$TPROXY_KEY"
-base_domain = "$TPROXY_PUBLIC_DOMAIN"
+cert_chain = "$GATEWAY_CERT"
+cert_key = "$GATEWAY_KEY"
+base_domain = "$GATEWAY_PUBLIC_DOMAIN"
 listen_addr = "$BIND_PUBLIC_IP"
-listen_port = $TPROXY_SERVE_PORT
+listen_port = $GATEWAY_SERVE_PORT
 agent_port = $AGENT_PORT
 EOF
 
@@ -229,7 +229,7 @@ kms_url = "https://localhost:$KMS_RPC_LISTEN_PORT"
 
 [cvm]
 kms_urls = ["https://$KMS_DOMAIN:$KMS_RPC_LISTEN_PORT"]
-tproxy_urls = ["https://$TPROXY_DOMAIN:$TPROXY_RPC_LISTEN_PORT"]
+gateway_urls = ["https://$GATEWAY_DOMAIN:$GATEWAY_RPC_LISTEN_PORT"]
 cid_start = $TEEPOD_CID_POOL_START
 cid_pool_size = $TEEPOD_CID_POOL_SIZE
 [cvm.port_mapping]
@@ -241,8 +241,8 @@ range = [
 ]
 
 [gateway]
-base_domain = "$TPROXY_PUBLIC_DOMAIN"
-port = $TPROXY_SERVE_PORT
+base_domain = "$GATEWAY_PUBLIC_DOMAIN"
+port = $GATEWAY_SERVE_PORT
 agent_port = $AGENT_PORT
 
 [host_api]
@@ -251,21 +251,6 @@ EOF
 
     mkdir -p $RUN_DIR
     mkdir -p $CERBOT_WORKDIR/backup/preinstalled
-}
-
-build_wg() {
-    echo "Setting up wireguard interface"
-    # Step 6: setup wireguard interface
-    # Check if the WireGuard interface exists
-    if ! ip link show $TPROXY_WG_INTERFACE &>/dev/null; then
-        sudo ip link add $TPROXY_WG_INTERFACE type wireguard
-        sudo ip address add $TPROXY_WG_IP dev $TPROXY_WG_INTERFACE
-        sudo ip link set $TPROXY_WG_INTERFACE up
-        echo "created and configured WireGuard interface $TPROXY_WG_INTERFACE"
-    else
-        echo "WireGuard interface $TPROXY_WG_INTERFACE already exists"
-    fi
-    # sudo ip route add $TPROXY_WG_CLIENT_IP_RANGE dev $TPROXY_WG_INTERFACE
 }
 
 download_image() {
@@ -316,13 +301,6 @@ cfg)
     require_config
     build_cfg
     ;;
-certs)
-    require_config
-    ;;
-wg)
-    require_config
-    build_wg
-    ;;
 dl)
     download_image $2 $3
     ;;
@@ -332,11 +310,10 @@ dl)
     build_host
     build_guest
     build_cfg
-    build_wg
     ;;
 *)
     echo "Invalid action: $ACTION"
-    echo "Valid actions are: host, guest, cfg, certs, wg, dl"
+    echo "Valid actions are: host, guest, cfg, dl"
     exit 1
     ;;
 esac
