@@ -50,18 +50,18 @@ KMS_DOMAIN=kms.1022.kvin.wang
 GATEWAY_DOMAIN=gateway.1022.kvin.wang
 
 # CIDs allocated to VMs start from this number of type unsigned int32
-TEEPOD_CID_POOL_START=20000
+VMM_CID_POOL_START=20000
 # CID pool size
-TEEPOD_CID_POOL_SIZE=1000
+VMM_CID_POOL_SIZE=1000
 
 # Base port for RPC services
 BASE_PORT=13000
 
-TEEPOD_RPC_LISTEN_PORT=$BASE_PORT
+VMM_RPC_LISTEN_PORT=$BASE_PORT
 # Whether port mapping from host to CVM is allowed
-TEEPOD_PORT_MAPPING_ENABLED=false
+VMM_PORT_MAPPING_ENABLED=false
 # Host API configuration, type of uint32
-TEEPOD_VSOCK_LISTEN_PORT=$BASE_PORT
+VMM_VSOCK_LISTEN_PORT=$BASE_PORT
 
 KMS_RPC_LISTEN_PORT=$(($BASE_PORT + 1))
 GATEWAY_RPC_LISTEN_PORT=$(($BASE_PORT + 2))
@@ -108,7 +108,7 @@ EOF
 build_host() {
     echo "Building binaries"
     (cd $DSTACK_DIR && cargo build --release --target-dir ${RUST_BUILD_DIR})
-    cp ${RUST_BUILD_DIR}/release/{dstack-gateway,kms,teepod,supervisor} .
+    cp ${RUST_BUILD_DIR}/release/{dstack-gateway,dstack-kms,dstack-vmm,supervisor} .
 }
 
 # Step 2: build guest images
@@ -218,11 +218,11 @@ listen_port = $GATEWAY_SERVE_PORT
 agent_port = $AGENT_PORT
 EOF
 
-    # teepod
-    cat <<EOF >teepod.toml
+    # dstack-vmm config
+    cat <<EOF >vmm.toml
 log_level = "info"
 address = "127.0.0.1"
-port = $TEEPOD_RPC_LISTEN_PORT
+port = $VMM_RPC_LISTEN_PORT
 image_path = "$IMAGES_DIR"
 run_path = "$RUN_DIR/vm"
 kms_url = "https://localhost:$KMS_RPC_LISTEN_PORT"
@@ -230,10 +230,10 @@ kms_url = "https://localhost:$KMS_RPC_LISTEN_PORT"
 [cvm]
 kms_urls = ["https://$KMS_DOMAIN:$KMS_RPC_LISTEN_PORT"]
 gateway_urls = ["https://$GATEWAY_DOMAIN:$GATEWAY_RPC_LISTEN_PORT"]
-cid_start = $TEEPOD_CID_POOL_START
-cid_pool_size = $TEEPOD_CID_POOL_SIZE
+cid_start = $VMM_CID_POOL_START
+cid_pool_size = $VMM_CID_POOL_SIZE
 [cvm.port_mapping]
-enabled = $TEEPOD_PORT_MAPPING_ENABLED
+enabled = $VMM_PORT_MAPPING_ENABLED
 address = "127.0.0.1"
 range = [
     { protocol = "tcp", from = 1, to = 20000 },
@@ -246,7 +246,7 @@ port = $GATEWAY_SERVE_PORT
 agent_port = $AGENT_PORT
 
 [host_api]
-port = $TEEPOD_VSOCK_LISTEN_PORT
+port = $VMM_VSOCK_LISTEN_PORT
 EOF
 
     mkdir -p $RUN_DIR
