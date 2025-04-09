@@ -172,7 +172,7 @@ mandatory = false
 [core]
 kms_url = "https://localhost:$KMS_RPC_LISTEN_PORT"
 rpc_domain = "$GATEWAY_DOMAIN"
-run_as_tapp = false
+run_in_dstack = false
 
 [core.sync]
 enabled = false

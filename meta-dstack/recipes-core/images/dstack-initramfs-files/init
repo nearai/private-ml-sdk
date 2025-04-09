@@ -6,11 +6,11 @@ export PATH=/sbin:/bin:/usr/sbin:/usr/bin
 mkdir -p /proc
 mkdir -p /sys
 mkdir -p /run
-mkdir -p /tapp
+mkdir -p /dstack
 mount -t proc proc /proc
 mount -t sysfs sysfs /sys
 mount -t tmpfs tmpfs /run
-mount -t tmpfs tmpfs /tapp
+mount -t tmpfs tmpfs /dstack
 
 mkdir -p /dev
 mount -t devtmpfs devtmpfs /dev
@@ -35,7 +35,9 @@ mount_move_all() {
         mount --move /$dir /root/$dir
     done
 }
-mount_move_all sys proc dev run tapp
+mount_move_all sys proc dev run dstack
+
+ln -sf dstack /root/tapp || true
 
 echo "Switching to new root"
 exec switch_root /root /init
