@@ -32,18 +32,20 @@ fi
 BB_BUILD_DIR=$(realpath ${BB_BUILD_DIR:-build})
 DIST_DIR=$(realpath ${DIST_DIR:-${BB_BUILD_DIR}/dist})
 
+IMG_DIR=${BB_BUILD_DIR}/tmp/deploy/images/tdx
 ROOTFS_IMAGE_NAME=${DIST_NAME}-rootfs
-WORK_DIR=${BB_BUILD_DIR}/${ROOTFS_IMAGE_NAME}.tmp
-INITRAMFS_IMAGE=${BB_BUILD_DIR}/tmp/deploy/images/tdx/dstack-initramfs.cpio.gz
-ROOTFS_IMAGE=${BB_BUILD_DIR}/tmp/deploy/images/tdx/${ROOTFS_IMAGE_NAME}-tdx.cpio
-KERNEL_IMAGE=${BB_BUILD_DIR}/tmp/deploy/images/tdx/bzImage
-OVMF_FIRMWARE=${BB_BUILD_DIR}/tmp/deploy/images/tdx/ovmf.fd
-ROOTFS_HASH=$(sha256sum "$ROOTFS_IMAGE" | awk '{print $1}')
+
+INITRAMFS_IMAGE=${IMG_DIR}/dstack-initramfs.cpio.gz
+ROOTFS_IMAGE=${IMG_DIR}/${ROOTFS_IMAGE_NAME}-tdx.ext4.verity
+KERNEL_IMAGE=${IMG_DIR}/bzImage
+OVMF_FIRMWARE=${IMG_DIR}/ovmf.fd
+# Always use the work-shared directory which has the correct verity env
+VERITY_ENV_FILE=${BB_BUILD_DIR}/tmp/work-shared/tdx/dm-verity/${ROOTFS_IMAGE_NAME}.ext4.verity.env
+echo "Loading verity env from ${VERITY_ENV_FILE}"
+source ${VERITY_ENV_FILE}
+
 DSTACK_VERSION=$(bitbake-getvar --value DISTRO_VERSION)
 OUTPUT_DIR=${OUTPUT_DIR:-"${DIST_DIR}/${DIST_NAME}-${DSTACK_VERSION}"}
-DSTACK_TAR_EXCLUDE_ROOTFS_CPIO=${DSTACK_TAR_EXCLUDE_ROOTFS_CPIO:-1}
-
-mkdir -p ${WORK_DIR}
 
 verbose() {
     echo "$@"
@@ -52,49 +54,19 @@ verbose() {
 
 Q=verbose
 
-makeiso() {
-    export SOURCE_DATE_EPOCH="$(date -d20010101 -u +%s)"
-    folder="$1"
-    output_filename="$2"
-    file_mode=0444
-
-    list="$(mktemp)"
-    (cd "$folder"; for f in *; do printf "%s\n" "$f=$PWD/$f"; done) | LC_ALL=C sort >"$list"
-
-    xorriso \
-        -preparer_id xorriso \
-        -volume_date 'all_file_dates' "=$SOURCE_DATE_EPOCH" \
-        -as mkisofs \
-        -iso-level 3 \
-        -graft-points \
-        -full-iso9660-filenames \
-        -joliet \
-        -file-mode $file_mode \
-        -uid 0 \
-        -gid 0 \
-        -path-list "$list" \
-        -output "$output_filename"
-
-    rm -f "$list"
-}
-
 $Q rm -rf ${OUTPUT_DIR}/
 $Q mkdir -p ${OUTPUT_DIR}/
 $Q cp $INITRAMFS_IMAGE ${OUTPUT_DIR}/initramfs.cpio.gz
 $Q cp $KERNEL_IMAGE ${OUTPUT_DIR}/
 $Q cp $OVMF_FIRMWARE ${OUTPUT_DIR}/
-
-$Q mkdir -p ${WORK_DIR}/rootfs/
-$Q cp $ROOTFS_IMAGE ${WORK_DIR}/rootfs/rootfs.cpio
-$Q cp $ROOTFS_IMAGE ${OUTPUT_DIR}/rootfs.cpio
-$Q makeiso ${WORK_DIR}/rootfs/ ${OUTPUT_DIR}/rootfs.iso
+$Q cp $ROOTFS_IMAGE ${OUTPUT_DIR}/rootfs.img.verity
 
 GIT_REVISION=$(git rev-parse HEAD)
 echo "Generating metadata.json to ${OUTPUT_DIR}/metadata.json"
 
 KARG0="console=ttyS0 init=/init panic=1 systemd.unified_cgroup_hierarchy=0 net.ifnames=0 biosdevname=0"
 KARG1="mce=off oops=panic pci=noearly pci=nommconf random.trust_cpu=y random.trust_bootloader=n tsc=reliable no-kvmclock"
-KARG2="dstack.fde=1 dstack.rootfs_hash=$ROOTFS_HASH"
+KARG2="dstack.rootfs_hash=$ROOT_HASH dstack.rootfs_size=$DATA_SIZE"
 
 cat <<EOF > ${OUTPUT_DIR}/metadata.json
 {
@@ -102,8 +74,7 @@ cat <<EOF > ${OUTPUT_DIR}/metadata.json
     "kernel": "bzImage",
     "cmdline": "$KARG0 $KARG1 $KARG2",
     "initrd": "initramfs.cpio.gz",
-    "rootfs": "rootfs.iso",
-    "rootfs_hash": "$ROOTFS_HASH",
+    "rootfs": "rootfs.img.verity",
     "version": "$DSTACK_VERSION",
     "git_revision": "$GIT_REVISION",
     "shared_ro": true,
@@ -120,9 +91,6 @@ popd
 if [ x$DSTACK_TAR_RELEASE = x1 ]; then
     OUTPUT_DIR=$(realpath ${OUTPUT_DIR})
     echo "Archiving the output directory to ${OUTPUT_DIR}.tar.gz"
-    if [ x$DSTACK_TAR_EXCLUDE_ROOTFS_CPIO = x1 ]; then
-        TAR_ARGS=--exclude=rootfs.cpio
-    fi
     (cd $(dirname ${OUTPUT_DIR}) && tar -czvf ${OUTPUT_DIR}.tar.gz ${TAR_ARGS} $(basename $OUTPUT_DIR))
     echo
 fi

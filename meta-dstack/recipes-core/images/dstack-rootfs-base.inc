@@ -1,3 +1,5 @@
+inherit core-image
+
 IMAGE_BASENAME = "${PN}"
 
 IMAGE_INSTALL = "\
@@ -14,9 +16,14 @@ IMAGE_INSTALL = "\
     tdx-guest-ko \
     dstack-guest \
     wireguard-tools \
+    e2fsprogs-mke2fs \
+    e2fsprogs-resize2fs \
+    e2fsprogs-e2fsck \
+    cryptsetup \
     curl \
     jq \
     chrony \
+    chronyc \
     qemu-guest-agent \
 "
 
@@ -29,9 +36,17 @@ INITRAMFS_MAXSIZE = "1000000"
 
 LICENSE = "MIT"
 
-IMAGE_FSTYPES = "cpio"
+IMAGE_CLASSES += "dm-verity-img"
 
-inherit core-image
+DM_VERITY_IMAGE = "${PN}"
+DM_VERITY_IMAGE_TYPE = "ext4"
+DM_VERITY_SEPARATE_HASH = "0"
+
+IMAGE_FSTYPES = "cpio ext4"
+CONVERSIONTYPES += "verity"
+IMAGE_TYPES += "ext4.verity"
+
+EXTRA_IMAGE_FEATURES = "read-only-rootfs"
 
 IMAGE_ROOTFS_SIZE = "8192"
 IMAGE_ROOTFS_EXTRA_SPACE = "0"
@@ -44,6 +59,8 @@ ROOTFS_POSTPROCESS_COMMAND += "remove_sysvinit_files;"
 ROOTFS_POSTPROCESS_COMMAND += "symlink_lib64;"
 IMAGE_FEATURES[validitems] += "nologin"
 ROOTFS_POSTPROCESS_COMMAND += '${@bb.utils.contains_any("IMAGE_FEATURES", [ 'nologin' ], "disable_getty_services", "",d)}'
+ROOTFS_POSTPROCESS_COMMAND += "mkdirs;"
+
 
 remove_sysvinit_files() {
     # Remove /etc/init.d directory and its contents
@@ -75,3 +92,13 @@ disable_getty_services() {
     done
 }
 
+mkdirs() {
+    mkdir -p ${IMAGE_ROOTFS}/dev
+    mkdir -p ${IMAGE_ROOTFS}/proc
+    mkdir -p ${IMAGE_ROOTFS}/sys
+    mkdir -p ${IMAGE_ROOTFS}/run
+    mkdir -p ${IMAGE_ROOTFS}/dstack
+    mkdir -p ${IMAGE_ROOTFS}/etc/wireguard
+    mkdir -p ${IMAGE_ROOTFS}/var/lib/docker
+    ln -sf dstack ${IMAGE_ROOTFS}/tapp
+}

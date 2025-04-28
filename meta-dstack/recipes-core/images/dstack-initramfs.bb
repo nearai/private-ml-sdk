@@ -1,20 +1,4 @@
-PACKAGE_INSTALL = "\
-    busybox \
-    udev \
-    base-passwd \
-    ${ROOTFS_BOOTSTRAP_INSTALL} \
-    base-files \
-    cryptsetup \
-    e2fsprogs-mke2fs \
-    e2fsprogs-resize2fs \
-    e2fsprogs-e2fsck \
-    tdx-guest-ko \
-    dstack-initramfs-files \
-    dstack-guest \
-    curl \
-    jq \
-    chrony \
-"
+PACKAGE_INSTALL = "busybox cryptsetup dstack-initscript"
 
 # Do not pollute the initrd image with rootfs features
 IMAGE_FEATURES = ""
