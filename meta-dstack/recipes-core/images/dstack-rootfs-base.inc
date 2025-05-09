@@ -25,6 +25,7 @@ IMAGE_INSTALL = "\
     chrony \
     chronyc \
     qemu-guest-agent \
+    dstack-zfs \
 "
 
 # Do not pollute the initrd image with rootfs features
