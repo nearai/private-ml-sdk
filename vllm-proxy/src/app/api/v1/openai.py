@@ -3,14 +3,15 @@ import os
 from hashlib import sha256
 
 import httpx
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
+from fastapi.responses import (JSONResponse, PlainTextResponse,
+                               StreamingResponse)
+
 from app.api.helper.auth import verify_authorization_header
 from app.api.response.response import error, invalid_signing_algo
 from app.cache.cache import cache
 from app.logger import log
 from app.quote.quote import ECDSA, ED25519, ecdsa_quote, ed25519_quote
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
-from fastapi.responses import (JSONResponse, PlainTextResponse,
-                               StreamingResponse)
 
 router = APIRouter(tags=["openai"])
 
@@ -141,6 +142,26 @@ async def non_stream_vllm_response(
         return response_data
 
 
+def strip_empty_tool_calls(payload: dict) -> dict:
+    """
+    Strip empty tool calls from the payload
+    To fix the bug of:
+    https://github.com/vllm-project/vllm/pull/14054
+    """
+    if "messages" not in payload:
+        return payload
+
+    filtered_messages = []
+    for message in payload["messages"]:
+        # If the message has tool_calls, filter out empty ones
+        if "tool_calls" in message and len(message["tool_calls"]) == 0:
+            del message["tool_calls"]
+        filtered_messages.append(message)
+
+    payload["messages"] = filtered_messages
+    return payload
+
+
 # Get attestation report of intel quote and nvidia payload
 @router.get("/attestation/report", dependencies=[Depends(verify_authorization_header)])
 async def attestation_report(request: Request, signing_algo: str = None):
@@ -178,6 +199,7 @@ async def chat_completions(request: Request):
     # Get the JSON body from the incoming request
     request_body = await request.body()
     request_json = json.loads(request_body)
+    request_json = strip_empty_tool_calls(request_json)
 
     # Check if the request is for streaming or non-streaming
     is_stream = request_json.get(
@@ -202,6 +224,7 @@ async def completions(request: Request):
     # Get the JSON body from the incoming request
     request_body = await request.body()
     request_json = json.loads(request_body)
+    request_json = strip_empty_tool_calls(request_json)
 
     # Check if the request is for streaming or non-streaming
     is_stream = request_json.get(
