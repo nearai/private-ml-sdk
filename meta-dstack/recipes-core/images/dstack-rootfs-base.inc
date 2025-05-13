@@ -28,9 +28,6 @@ IMAGE_INSTALL = "\
     dstack-zfs \
 "
 
-# Do not pollute the initrd image with rootfs features
-IMAGE_FEATURES = ""
-
 IMAGE_NAME_SUFFIX ?= ""
 IMAGE_LINGUAS = ""
 INITRAMFS_MAXSIZE = "1000000"
