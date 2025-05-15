@@ -12,13 +12,9 @@ IMAGE_INSTALL = "\
     iptables \
     docker-moby \
     docker-compose \
-    dstack-prebuilt \
     tdx-guest-ko \
     dstack-guest \
     wireguard-tools \
-    e2fsprogs-mke2fs \
-    e2fsprogs-resize2fs \
-    e2fsprogs-e2fsck \
     cryptsetup \
     curl \
     jq \
