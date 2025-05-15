@@ -20,6 +20,7 @@ DSTACK_SERVICES = "dstack-guest-agent.service dstack-prepare.service app-compose
 SYSTEMD_PACKAGES = "${@bb.utils.contains('DISTRO_FEATURES','systemd','${PN}','',d)}"
 SYSTEMD_SERVICE:${PN} = "${@bb.utils.contains('DISTRO_FEATURES','systemd','${DSTACK_SERVICES}','',d)}"
 SYSTEMD_AUTO_ENABLE:${PN} = "enable"
+EXTRA_CARGO_FLAGS = "-p dstack-guest-agent -p dstack-util"
 
 inherit cargo_bin
 
@@ -37,7 +38,6 @@ do_install() {
     install -d ${D}${bindir}
     install -d ${D}${sysconfdir}/docker
     install -d ${D}${sysconfdir}/systemd/journald.conf.d
-    install -m 0755 ${CARGO_BINDIR}/iohash ${D}${bindir}
     install -m 0755 ${CARGO_BINDIR}/dstack-util ${D}${bindir}
     install -m 0755 ${CARGO_BINDIR}/dstack-guest-agent ${D}${bindir}
     install -m 0755 ${S}/basefiles/dstack-prepare.sh ${D}${bindir}
