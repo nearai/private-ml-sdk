@@ -16,3 +16,6 @@
 [submodule "dstack"]
 	path = meta-dstack-nvidia/dstack
 	url = https://github.com/Dstack-TEE/dstack
+[submodule "meta-security"]
+	path = meta-dstack-nvidia/meta-security
+	url = https://git.yoctoproject.org/meta-security
