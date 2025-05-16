@@ -204,7 +204,7 @@ async def chat_completions(request: Request):
     # Check if the request is for streaming or non-streaming
     is_stream = request_json.get(
         "stream", False
-    )
+    )  # Default to non-streaming if not specified
 
     modified_request_body = json.dumps(request_json).encode("utf-8")
     if is_stream:
@@ -229,7 +229,7 @@ async def completions(request: Request):
     # Check if the request is for streaming or non-streaming
     is_stream = request_json.get(
         "stream", False
-    )  # Default to streaming if not specified
+    )  # Default to non-streaming if not specified
 
     modified_request_body = json.dumps(request_json).encode("utf-8")
     if is_stream:
