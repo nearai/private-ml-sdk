@@ -196,17 +196,17 @@ async def attestation_report(request: Request, signing_algo: str = None):
 # VLLM Chat completions
 @router.post("/chat/completions", dependencies=[Depends(verify_authorization_header)])
 async def chat_completions(request: Request):
-    # Get the JSON body from the incoming request
+    # Keep original request body to calculate the request hash for attestation
     request_body = await request.body()
     request_json = json.loads(request_body)
-    request_json = strip_empty_tool_calls(request_json)
+    modified_json = strip_empty_tool_calls(request_json)
 
     # Check if the request is for streaming or non-streaming
-    is_stream = request_json.get(
+    is_stream = modified_json.get(
         "stream", False
     )  # Default to non-streaming if not specified
 
-    modified_request_body = json.dumps(request_json).encode("utf-8")
+    modified_request_body = json.dumps(modified_json).encode("utf-8")
     if is_stream:
         # Create a streaming response
         return await stream_vllm_response(VLLM_URL, request_body, modified_request_body)
@@ -221,17 +221,17 @@ async def chat_completions(request: Request):
 # VLLM completions
 @router.post("/completions", dependencies=[Depends(verify_authorization_header)])
 async def completions(request: Request):
-    # Get the JSON body from the incoming request
+    # Keep original request body to calculate the request hash for attestation
     request_body = await request.body()
     request_json = json.loads(request_body)
-    request_json = strip_empty_tool_calls(request_json)
+    modified_json = strip_empty_tool_calls(request_json)
 
     # Check if the request is for streaming or non-streaming
-    is_stream = request_json.get(
+    is_stream = modified_json.get(
         "stream", False
     )  # Default to non-streaming if not specified
 
-    modified_request_body = json.dumps(request_json).encode("utf-8")
+    modified_request_body = json.dumps(modified_json).encode("utf-8")
     if is_stream:
         # Create a streaming response
         return await stream_vllm_response(
