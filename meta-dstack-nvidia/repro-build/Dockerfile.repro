@@ -1,4 +1,4 @@
-FROM ubuntu:22.04@sha256:0e5e4a57c2499249aafc3b40fcd541e9a456aab7296681a3994d631587203f97
+FROM ubuntu:24.04@sha256:3afff29dffbc200d202546dc6c4f614edc3b109691e7ab4aa23d02b42ba86790
 
 # Prevent timezone prompt by setting noninteractive frontend and configuring tzdata
 ENV DEBIAN_FRONTEND=noninteractive \
@@ -24,7 +24,9 @@ RUN apt update && apt install -y \
     gawk \
     wget \
     libclang-dev \
-    xorriso
+    xorriso \
+    cpio \
+    zstd
 
 # Generate locale for bitbake
 RUN locale-gen en_US.UTF-8
