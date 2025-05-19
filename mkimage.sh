@@ -46,6 +46,8 @@ source ${VERITY_ENV_FILE}
 
 DSTACK_VERSION=$(bitbake-getvar --value DISTRO_VERSION)
 OUTPUT_DIR=${OUTPUT_DIR:-"${DIST_DIR}/${DIST_NAME}-${DSTACK_VERSION}"}
+IMAGE_TAR=${IMAGE_TAR:-"${DIST_DIR}/${DIST_NAME}-${DSTACK_VERSION}.tar.gz"}
+IMAGE_TAR_NO_ROOTFS=${IMAGE_TAR_NO_ROOTFS:-"${DIST_DIR}/${DIST_NAME}-no-rootfs-${DSTACK_VERSION}.tar.gz"}
 
 verbose() {
     echo "$@"
@@ -82,15 +84,19 @@ cat <<EOF > ${OUTPUT_DIR}/metadata.json
 }
 EOF
 
-echo "Generating md5sum.txt and sha256sum.txt to ${OUTPUT_DIR}/"
+echo "Generating image digest to ${OUTPUT_DIR}/"
 pushd ${OUTPUT_DIR}/
-find . -type f -not -name md5sum.txt -not -name sha256sum.txt -exec md5sum {} + | sort -k 2 > md5sum.txt
-find . -type f -not -name md5sum.txt -not -name sha256sum.txt -exec sha256sum {} + | sort -k 2 > sha256sum.txt
+sha256sum ovmf.fd bzImage initramfs.cpio.gz metadata.json > sha256sum.txt
+sha256sum sha256sum.txt | awk '{print $1}' > digest.txt
 popd
 
 if [ x$DSTACK_TAR_RELEASE = x1 ]; then
     OUTPUT_DIR=$(realpath ${OUTPUT_DIR})
-    echo "Archiving the output directory to ${OUTPUT_DIR}.tar.gz"
-    (cd $(dirname ${OUTPUT_DIR}) && tar -czvf ${OUTPUT_DIR}.tar.gz ${TAR_ARGS} $(basename $OUTPUT_DIR))
+    echo "Archiving the output directory to ${IMAGE_TAR}"
+    (cd $(dirname ${OUTPUT_DIR}) && tar -czvf ${IMAGE_TAR} $(basename $OUTPUT_DIR))
+
+    echo "Creating archive without rootfs files to ${IMAGE_TAR_NO_ROOTFS}"
+    echo tar -C "${OUTPUT_DIR}" -czvf ${IMAGE_TAR_NO_ROOTFS} --exclude="rootfs.*"
+    tar -C "${OUTPUT_DIR}" -czvf ${IMAGE_TAR_NO_ROOTFS} --exclude="rootfs.*" .
     echo
 fi
