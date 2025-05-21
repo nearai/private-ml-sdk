@@ -29,6 +29,12 @@ do_unpack() {
     cp ${THISDIR}/files/docker-daemon.json ${S}/
 }
 
+# Force the configure task to run every time to detect source changes
+do_unpack[nostamp] = "1"
+
+# Add source directory to configure task dependencies
+do_unpack[vardeps] += "SRC_DIR"
+
 do_configure() {
     cargo_bin_do_configure
 }
