@@ -22,6 +22,7 @@ IMAGE_INSTALL = "\
     chronyc \
     qemu-guest-agent \
     dstack-zfs \
+    kernel-module-tun \
 "
 
 IMAGE_NAME_SUFFIX ?= ""
