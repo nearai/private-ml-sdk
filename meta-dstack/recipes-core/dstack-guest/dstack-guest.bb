@@ -15,6 +15,9 @@ RDEPENDS:${PN} += "bash"
 
 DEPENDS += "rsync-native"
 
+# Ensure rsync-native is built before unpack runs
+do_unpack[depends] += "rsync-native:do_populate_sysroot"
+
 DSTACK_SERVICES = "dstack-guest-agent.service dstack-prepare.service app-compose.service"
 SYSTEMD_PACKAGES = "${@bb.utils.contains('DISTRO_FEATURES','systemd','${PN}','',d)}"
 SYSTEMD_SERVICE:${PN} = "${@bb.utils.contains('DISTRO_FEATURES','systemd','${DSTACK_SERVICES}','',d)}"
