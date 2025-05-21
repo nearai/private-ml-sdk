@@ -1,6 +1,8 @@
 #!/bin/bash
 set -e
 
+DSTACK_TAR_RELEASE=${DSTACK_TAR_RELEASE:-1}
+
 # Parse command line arguments
 while [ $# -gt 0 ]; do
     case "$1" in
