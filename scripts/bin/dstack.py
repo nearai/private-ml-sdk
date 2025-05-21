@@ -125,7 +125,7 @@ def update_guest_config(config_file: str, data: Dict):
         json.dump(config, f, indent=4)
 
 
-def gen_vm_config(vm_dir, host_port, manifest=None, mr_image=None):
+def gen_vm_config(vm_dir, host_port, manifest=None, os_image_hash=None):
     shared_dir = os.path.join(vm_dir, 'shared')
     for filename in ['config.json', '.sys-config.json']:
         config_file = os.path.join(shared_dir, filename)
@@ -136,7 +136,7 @@ def gen_vm_config(vm_dir, host_port, manifest=None, mr_image=None):
         if manifest:
             update_guest_config(config_file, {
                 "vm_config": {
-                    "mr_image": mr_image,
+                    "os_image_hash": os_image_hash,
                     "cpu_count": manifest['cpu_count'],
                     "memory_size": manifest['memory_size'] * 1024 * 1024
                 }
@@ -396,8 +396,8 @@ class DStackManager:
         with open(img_metadata_path, 'r') as f:
             img_metadata = json.load(f)
 
-        mr_image = open(os.path.join(image_path, 'digest.txt'), 'rb').read()
-        gen_vm_config(vm_dir, host_port, manifest, mr_image)
+        os_image_hash = open(os.path.join(image_path, 'digest.txt'), 'rb').read()
+        gen_vm_config(vm_dir, host_port, manifest, os_image_hash)
 
         mem_gb = manifest['memory'] // 1024
         vcpu_count = manifest['vcpu']
