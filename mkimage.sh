@@ -38,11 +38,11 @@ IMG_DIR=${BB_BUILD_DIR}/tmp/deploy/images/tdx
 ROOTFS_IMAGE_NAME=${DIST_NAME}-rootfs
 
 INITRAMFS_IMAGE=${IMG_DIR}/dstack-initramfs.cpio.gz
-ROOTFS_IMAGE=${IMG_DIR}/${ROOTFS_IMAGE_NAME}-tdx.ext4.verity
+ROOTFS_IMAGE=${IMG_DIR}/${ROOTFS_IMAGE_NAME}-tdx.squashfs.verity
 KERNEL_IMAGE=${IMG_DIR}/bzImage
 OVMF_FIRMWARE=${IMG_DIR}/ovmf.fd
 # Always use the work-shared directory which has the correct verity env
-VERITY_ENV_FILE=${BB_BUILD_DIR}/tmp/work-shared/tdx/dm-verity/${ROOTFS_IMAGE_NAME}.ext4.verity.env
+VERITY_ENV_FILE=${BB_BUILD_DIR}/tmp/work-shared/tdx/dm-verity/${ROOTFS_IMAGE_NAME}.squashfs.verity.env
 echo "Loading verity env from ${VERITY_ENV_FILE}"
 source ${VERITY_ENV_FILE}
 

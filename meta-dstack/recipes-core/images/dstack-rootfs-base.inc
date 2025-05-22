@@ -34,12 +34,13 @@ LICENSE = "MIT"
 IMAGE_CLASSES += "dm-verity-img"
 
 DM_VERITY_IMAGE = "${PN}"
-DM_VERITY_IMAGE_TYPE = "ext4"
+DM_VERITY_IMAGE_TYPE = "squashfs"
 DM_VERITY_SEPARATE_HASH = "0"
+DM_VERITY_REPRODUCIBLE = "1"
 
-IMAGE_FSTYPES = "cpio ext4"
+IMAGE_FSTYPES = "cpio squashfs"
 CONVERSIONTYPES += "verity"
-IMAGE_TYPES += "ext4.verity"
+IMAGE_TYPES += "squashfs.verity"
 
 EXTRA_IMAGE_FEATURES = "read-only-rootfs"
 
