@@ -42,7 +42,14 @@ check_config() {
 }
 
 require_config() {
-    cat <<'EOF' >build-config.sh.tpl
+
+# Base port for RPC services
+BASE_PORT=$(($RANDOM % 1000 * 10 + 10000))
+CID_POOL_START=$(($RANDOM % 1000 * 1000 + 20000))
+SUBNET_INDEX=$(($RANDOM % 240 + 10))
+
+
+    cat <<EOF >build-config.sh.tpl
 # DNS domain of kms rpc and dstack-gateway rpc
 # *.1022.kvin.wang resolves to 10.0.2.2 which is the IP of the host system
 # from CVMs point of view
@@ -50,16 +57,13 @@ KMS_DOMAIN=kms.1022.kvin.wang
 GATEWAY_DOMAIN=gateway.1022.kvin.wang
 
 # CIDs allocated to VMs start from this number of type unsigned int32
-VMM_CID_POOL_START=20000
+VMM_CID_POOL_START=$CID_POOL_START
 # CID pool size
 VMM_CID_POOL_SIZE=1000
 
-# Base port for RPC services
-BASE_PORT=13000
-
 VMM_RPC_LISTEN_PORT=$BASE_PORT
 # Whether port mapping from host to CVM is allowed
-VMM_PORT_MAPPING_ENABLED=false
+VMM_PORT_MAPPING_ENABLED=true
 # Host API configuration, type of uint32
 VMM_VSOCK_LISTEN_PORT=$BASE_PORT
 
@@ -68,7 +72,7 @@ GATEWAY_RPC_LISTEN_PORT=$(($BASE_PORT + 2))
 
 GATEWAY_WG_INTERFACE=dgw-$USER
 GATEWAY_WG_LISTEN_PORT=$(($BASE_PORT + 3))
-GATEWAY_WG_IP=10.3.3.1
+GATEWAY_WG_IP=10.$SUBNET_INDEX.3.1
 GATEWAY_SERVE_PORT=$(($BASE_PORT + 4))
 GATEWAY_CERT=
 GATEWAY_KEY=
@@ -153,6 +157,9 @@ quote_enabled = false
 address = "127.0.0.1"
 port = $KMS_RPC_LISTEN_PORT
 auto_bootstrap_domain = "$KMS_DOMAIN"
+
+[core.image]
+verify = false
 EOF
 
     # dstack-gateway
@@ -304,8 +311,12 @@ cfg)
 dl)
     download_image $2 $3
     ;;
-"")
-    # If no action specified, build everything
+hostcfg)
+    require_config
+    build_host
+    build_cfg
+    ;;
+all)
     require_config
     build_host
     build_guest
@@ -313,7 +324,13 @@ dl)
     ;;
 *)
     echo "Invalid action: $ACTION"
-    echo "Valid actions are: host, guest, cfg, dl"
+    echo "Valid actions are:"
+    echo "  host     - Build host binaries only"
+    echo "  guest    - Build guest images only"
+    echo "  cfg      - Generate configuration files only"
+    echo "  dl       - Download a specific image"
+    echo "  hostcfg  - Build host binaries and generate configuration files"
+    echo "  all      - Build everything (host, guest, and configuration)"
     exit 1
     ;;
 esac

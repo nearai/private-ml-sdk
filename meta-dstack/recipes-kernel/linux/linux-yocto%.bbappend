@@ -10,6 +10,7 @@ SRC_URI += "file://dstack-docker.cfg \
 KERNEL_FEATURES:append = " features/cgroups/cgroups.scc \
                           features/overlayfs/overlayfs.scc \
                           features/netfilter/netfilter.scc \
+                          cfg/fs/squashfs.scc \
                           dstack-docker.scc \
                           dstack.scc"
 

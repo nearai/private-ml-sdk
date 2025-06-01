@@ -1,6 +1,8 @@
 #!/bin/bash
 set -e
 
+DSTACK_TAR_RELEASE=${DSTACK_TAR_RELEASE:-1}
+
 # Parse command line arguments
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -36,16 +38,17 @@ IMG_DIR=${BB_BUILD_DIR}/tmp/deploy/images/tdx
 ROOTFS_IMAGE_NAME=${DIST_NAME}-rootfs
 
 INITRAMFS_IMAGE=${IMG_DIR}/dstack-initramfs.cpio.gz
-ROOTFS_IMAGE=${IMG_DIR}/${ROOTFS_IMAGE_NAME}-tdx.ext4.verity
+ROOTFS_IMAGE=${IMG_DIR}/${ROOTFS_IMAGE_NAME}-tdx.squashfs.verity
 KERNEL_IMAGE=${IMG_DIR}/bzImage
 OVMF_FIRMWARE=${IMG_DIR}/ovmf.fd
 # Always use the work-shared directory which has the correct verity env
-VERITY_ENV_FILE=${BB_BUILD_DIR}/tmp/work-shared/tdx/dm-verity/${ROOTFS_IMAGE_NAME}.ext4.verity.env
+VERITY_ENV_FILE=${BB_BUILD_DIR}/tmp/work-shared/tdx/dm-verity/${ROOTFS_IMAGE_NAME}.squashfs.verity.env
 echo "Loading verity env from ${VERITY_ENV_FILE}"
 source ${VERITY_ENV_FILE}
 
 DSTACK_VERSION=$(bitbake-getvar --value DISTRO_VERSION)
 OUTPUT_DIR=${OUTPUT_DIR:-"${DIST_DIR}/${DIST_NAME}-${DSTACK_VERSION}"}
+IMAGE_TAR=${IMAGE_TAR:-"${DIST_DIR}/${DIST_NAME}-${DSTACK_VERSION}.tar.gz"}
 
 verbose() {
     echo "$@"
@@ -82,15 +85,23 @@ cat <<EOF > ${OUTPUT_DIR}/metadata.json
 }
 EOF
 
-echo "Generating md5sum.txt and sha256sum.txt to ${OUTPUT_DIR}/"
+echo "Generating image digest to ${OUTPUT_DIR}/"
 pushd ${OUTPUT_DIR}/
-find . -type f -not -name md5sum.txt -not -name sha256sum.txt -exec md5sum {} + | sort -k 2 > md5sum.txt
-find . -type f -not -name md5sum.txt -not -name sha256sum.txt -exec sha256sum {} + | sort -k 2 > sha256sum.txt
+sha256sum ovmf.fd bzImage initramfs.cpio.gz metadata.json > sha256sum.txt
+sha256sum sha256sum.txt | awk '{print $1}' > digest.txt
 popd
 
 if [ x$DSTACK_TAR_RELEASE = x1 ]; then
+    IMAGE_TAR_MR=${DIST_DIR}/mr_$(cat ${OUTPUT_DIR}/digest.txt | tr -d '\n').tar.gz
+    IMAGE_TAR_NO_ROOTFS=${DIST_DIR}/${DIST_NAME}-${DSTACK_VERSION}-mr.tar.gz
     OUTPUT_DIR=$(realpath ${OUTPUT_DIR})
-    echo "Archiving the output directory to ${OUTPUT_DIR}.tar.gz"
-    (cd $(dirname ${OUTPUT_DIR}) && tar -czvf ${OUTPUT_DIR}.tar.gz ${TAR_ARGS} $(basename $OUTPUT_DIR))
+    rm -rf ${IMAGE_TAR} ${IMAGE_TAR_MR} ${IMAGE_TAR_NO_ROOTFS}
+    echo "Archiving the output directory to ${IMAGE_TAR}"
+    (cd $(dirname ${OUTPUT_DIR}) && tar -czvf ${IMAGE_TAR} $(basename $OUTPUT_DIR))
+
+    echo "Creating archive without rootfs files to ${IMAGE_TAR_NO_ROOTFS} -> ${IMAGE_TAR_MR}"
+    echo tar -C "${OUTPUT_DIR}" -czvf ${IMAGE_TAR_NO_ROOTFS} --exclude="rootfs.*"
+    tar -C "${OUTPUT_DIR}" -czvf ${IMAGE_TAR_MR} --exclude="rootfs.*" .
+    ln -sf $(basename ${IMAGE_TAR_MR}) ${IMAGE_TAR_NO_ROOTFS}
     echo
 fi
