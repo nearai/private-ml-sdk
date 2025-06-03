@@ -10,6 +10,8 @@ SRC_URI = " \
 SRC_URI[md5sum] = "29b99ed15a1e7763221c624f92304836"
 SRC_URI[sha256sum] = "1253d17b1528e8a24bf1f34a8ac6591c924b98ad7a32344bde253aa622ac1605"
 
+RDEPENDS:${PN} = "nvidia-modprobe-config"
+
 do_unpack() {
 	chmod +x ${DL_DIR}/${NVIDIA_ARCHIVE_NAME}.run
 	rm -rf ${NVIDIA_SRC}
