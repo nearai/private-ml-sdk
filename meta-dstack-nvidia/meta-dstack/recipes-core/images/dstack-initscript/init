@@ -39,7 +39,7 @@ echo "  Data size: ${DATA_SIZE}"
 veritysetup open ${ROOT_DEV} rootfs ${ROOT_DEV} "${ROOT_HASH}" --hash-offset="${DATA_SIZE}"
 
 echo "Mounting rootfs..."
-mount -t ext4 -o ro /dev/mapper/rootfs ${ROOT_DIR}
+mount -t squashfs /dev/mapper/rootfs ${ROOT_DIR}
 
 mount_move_all() {
     for dir in $@; do

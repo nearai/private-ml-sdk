@@ -125,7 +125,7 @@ def update_guest_config(config_file: str, data: Dict):
         json.dump(config, f, indent=4)
 
 
-def gen_vm_config(vm_dir, host_port):
+def gen_vm_config(vm_dir, host_port, manifest=None, os_image_hash=None):
     shared_dir = os.path.join(vm_dir, 'shared')
     for filename in ['config.json', '.sys-config.json']:
         config_file = os.path.join(shared_dir, filename)
@@ -133,6 +133,14 @@ def gen_vm_config(vm_dir, host_port):
             "host_api_url": f"http://10.0.2.2:{host_port}/api",
             "host_vsock_port": host_port
         })
+        if manifest:
+            update_guest_config(config_file, {
+                "vm_config": {
+                    "os_image_hash": os_image_hash,
+                    "cpu_count": manifest['cpu_count'],
+                    "memory_size": manifest['memory_size'] * 1024 * 1024
+                }
+            })
 
 
 @dataclass
@@ -364,7 +372,6 @@ class DStackManager:
             vm_dir: Directory containing the VM configuration
             dry_run: Whether to run in dry run mode
         """
-        gen_vm_config(vm_dir, host_port)
 
         manifest_path = os.path.join(vm_dir, 'vm-manifest.json')
         if not os.path.exists(manifest_path):
@@ -388,6 +395,9 @@ class DStackManager:
 
         with open(img_metadata_path, 'r') as f:
             img_metadata = json.load(f)
+
+        os_image_hash = open(os.path.join(image_path, 'digest.txt'), 'rb').read()
+        gen_vm_config(vm_dir, host_port, manifest, os_image_hash)
 
         mem_gb = manifest['memory'] // 1024
         vcpu_count = manifest['vcpu']
