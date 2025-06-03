@@ -3,6 +3,7 @@ NVIDIA_GROUP = "acpid \
     nvidia-firmware \
     nvidia-persistenced \
     nvidia-fabricmanager \
+    libnvidia-nscq \
     nvidia-container-toolkit \
     kernel-module-video \
     numactl \
