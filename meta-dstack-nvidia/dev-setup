@@ -23,6 +23,7 @@ LAYERS="$THIS_DIR/meta-confidential-compute \
     $THIS_DIR/meta-openembedded/meta-filesystems \
     $THIS_DIR/meta-virtualization \
     $THIS_DIR/meta-rust-bin \
+    $THIS_DIR/meta-security \
     $THIS_DIR/meta-dstack"
 
 if [ -z "$1" ]; then

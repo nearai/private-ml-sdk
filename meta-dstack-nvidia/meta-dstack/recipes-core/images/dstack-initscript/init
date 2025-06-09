@@ -1,0 +1,52 @@
+#!/bin/sh
+set -e
+
+export PATH=/sbin:/bin:/usr/sbin:/usr/bin
+
+mkdir -p /proc
+mkdir -p /sys
+mkdir -p /run
+mount -t proc proc /proc
+mount -t sysfs sysfs /sys
+mount -t tmpfs tmpfs /run
+
+mkdir -p /dev
+mount -t devtmpfs devtmpfs /dev
+
+mkdir -p /dev/pts
+
+# Parse kernel parameters
+for param in $(cat /proc/cmdline); do
+	case "$param" in
+		"dstack.rootfs_hash="*)
+			ROOT_HASH="${param#*=}"
+			;;
+		"dstack.rootfs_size="*)
+			DATA_SIZE="${param#*=}"
+			;;
+		*)
+			;;
+	esac
+done
+ROOT_DEV=/dev/vda
+ROOT_DIR=/root
+
+echo "Setting up verity device:"
+echo "  Root device: ${ROOT_DEV}"
+echo "  Root hash: ${ROOT_HASH}"
+echo "  Data size: ${DATA_SIZE}"
+
+veritysetup open ${ROOT_DEV} rootfs ${ROOT_DEV} "${ROOT_HASH}" --hash-offset="${DATA_SIZE}"
+
+echo "Mounting rootfs..."
+mount -t squashfs /dev/mapper/rootfs ${ROOT_DIR}
+
+mount_move_all() {
+    for dir in $@; do
+        mount --move /$dir ${ROOT_DIR}/$dir
+    done
+}
+mount_move_all sys proc dev run
+
+echo "Switching to new root..."
+exec switch_root ${ROOT_DIR} /sbin/init

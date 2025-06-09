@@ -1,7 +1,9 @@
 SUMMARY = "NVidia Persistenced systemd service"
 LICENSE = "CLOSED"
 
-SRC_URI += "file://nvidia-persistenced.service"
+SRC_URI += "\
+    file://nvidia-persistenced.service \
+"
 
 inherit systemd
 

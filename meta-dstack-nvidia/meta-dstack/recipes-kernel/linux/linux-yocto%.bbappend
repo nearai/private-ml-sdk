@@ -10,8 +10,11 @@ SRC_URI += "file://dstack-docker.cfg \
 KERNEL_FEATURES:append = " features/cgroups/cgroups.scc \
                           features/overlayfs/overlayfs.scc \
                           features/netfilter/netfilter.scc \
+                          cfg/fs/squashfs.scc \
                           dstack-docker.scc \
                           dstack.scc"
+
+KERNEL_FEATURES:append = " ${@bb.utils.contains("DISTRO_FEATURES", "dm-verity", " features/device-mapper/dm-verity.scc", "" ,d)}"
 
 KERNEL_FEATURES:append:tdx = " dstack-tdx.scc"
 
