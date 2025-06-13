@@ -20,7 +20,6 @@ IMAGE_INSTALL = "\
     jq \
     chrony \
     chronyc \
-    qemu-guest-agent \
     dstack-zfs \
     kernel-module-tun \
 "
