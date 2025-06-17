@@ -22,6 +22,9 @@ IMAGE_INSTALL = "\
     chronyc \
     dstack-zfs \
     kernel-module-tun \
+    kernel-module-fuse \
+    fuse3 \
+    fuse3-utils \
 "
 
 IMAGE_NAME_SUFFIX ?= ""
