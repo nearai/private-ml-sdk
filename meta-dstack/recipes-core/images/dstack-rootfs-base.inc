@@ -88,6 +88,42 @@ disable_getty_services() {
         rm -f ${IMAGE_ROOTFS}/usr/lib/systemd/system/${srv}.service
         rm -f ${IMAGE_ROOTFS}/usr/lib/systemd/system/${srv}@.service
     done
+
+    # Login/console related
+    rm -rf ${IMAGE_ROOTFS}/usr/sbin/getty
+    rm -rf ${IMAGE_ROOTFS}/usr/sbin/agetty
+    rm -rf ${IMAGE_ROOTFS}/usr/bin/login
+    rm -rf ${IMAGE_ROOTFS}/usr/bin/loginctl
+    rm -rf ${IMAGE_ROOTFS}/etc/systemd/system/getty.target.wants
+
+    # Console fonts and keymaps
+    rm -rf ${IMAGE_ROOTFS}/usr/share/consolefonts
+    rm -rf ${IMAGE_ROOTFS}/usr/share/keymaps
+
+    # Systemd components we don't need
+    rm -rf ${IMAGE_ROOTFS}/usr/bin/systemd-tty-ask-password-agent
+    rm -rf ${IMAGE_ROOTFS}/usr/lib/systemd/system/debug-shell.service
+    rm -rf ${IMAGE_ROOTFS}/usr/lib/systemd/system/suspend.target
+    rm -rf ${IMAGE_ROOTFS}/usr/lib/systemd/system/systemd-hibernate.service
+    rm -rf ${IMAGE_ROOTFS}/usr/lib/systemd/system/systemd-suspend-then-hibernate.service
+    rm -rf ${IMAGE_ROOTFS}/usr/lib/systemd/systemd-hibernate-resume
+    rm -rf ${IMAGE_ROOTFS}/usr/lib/systemd/system-generators/systemd-getty-generator
+    rm -rf ${IMAGE_ROOTFS}/usr/lib/systemd/systemd-logind
+    rm -rf ${IMAGE_ROOTFS}/usr/lib/systemd/system/systemd-logind.service
+    rm -rf ${IMAGE_ROOTFS}/usr/lib/systemd/system/multi-user.target.wants/systemd-logind.service
+    rm -rf ${IMAGE_ROOTFS}/usr/lib/systemd/logind.conf.d
+    rm -rf ${IMAGE_ROOTFS}/usr/lib/systemd/system/graphical.target.wants
+    rm -rf ${IMAGE_ROOTFS}/usr/lib/systemd/user/graphical-session.target
+    rm -rf ${IMAGE_ROOTFS}/usr/lib/systemd/user/graphical-session-pre.target
+    rm -rf ${IMAGE_ROOTFS}/usr/lib/systemd/user/bluetooth.target
+
+    # Polkit
+    rm -rf ${IMAGE_ROOTFS}/usr/share/polkit-1
+
+    # Factory defaults
+    rm -rf ${IMAGE_ROOTFS}/usr/share/factory
+
+    > ${IMAGE_ROOTFS}/etc/securetty
 }
 
 mkdirs() {
