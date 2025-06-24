@@ -396,7 +396,7 @@ class DStackManager:
         with open(img_metadata_path, 'r') as f:
             img_metadata = json.load(f)
 
-        os_image_hash = open(os.path.join(image_path, 'digest.txt'), 'rb').read()
+        os_image_hash = open(os.path.join(image_path, 'digest.txt'), 'r').read().strip()
         gen_vm_config(vm_dir, host_port, manifest, os_image_hash)
 
         mem_gb = manifest['memory'] // 1024
