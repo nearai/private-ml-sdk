@@ -3,19 +3,26 @@ import os
 from hashlib import sha256
 
 import httpx
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
+from fastapi.responses import (JSONResponse, PlainTextResponse,
+                               StreamingResponse)
+
 from app.api.helper.auth import verify_authorization_header
 from app.api.response.response import error, invalid_signing_algo
 from app.cache.cache import cache
 from app.logger import log
 from app.quote.quote import ECDSA, ED25519, ecdsa_quote, ed25519_quote
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
-from fastapi.responses import JSONResponse, StreamingResponse, PlainTextResponse
 
 router = APIRouter(tags=["openai"])
 
-VLLM_URL = "http://vllm:8000/v1/chat/completions"
-VLLM_METRICS_URL = "http://vllm:8000/metrics"
+VLLM_BASE_URL = "http://vllm:8000"
+VLLM_URL = f"{VLLM_BASE_URL}/v1/chat/completions"
+VLLM_COMPLETIONS_URL = f"{VLLM_BASE_URL}/v1/completions"
+VLLM_METRICS_URL = f"{VLLM_BASE_URL}/metrics"
+VLLM_MODELS_URL = f"{VLLM_BASE_URL}/v1/models"
 TIMEOUT = 60 * 10
+
+COMMON_HEADERS = {"Content-Type": "application/json", "Accept": "application/json"}
 
 
 def sign_request(request: dict, response: str):
@@ -37,13 +44,18 @@ def sign_chat(text: str):
     )
 
 
-async def stream_vllm_response(request_body: bytes):
+async def stream_vllm_response(
+    url: str, request_body: bytes, modified_request_body: bytes
+):
+    """
+    Handle streaming vllm request
+    Args:
+        request_body: The original request body
+        modified_request_body: The modified enhanced request body
+    Returns:
+        A streaming response
+    """
     request_sha256 = sha256(request_body).hexdigest()
-
-    # Modify the request body to use the correct model path and lowercasemodel name
-    request_json = json.loads(request_body)
-    request_json["model"] = request_json["model"].lower()
-    modified_request_body = json.dumps(request_json)
 
     chat_id = None
     h = sha256()
@@ -75,9 +87,9 @@ async def stream_vllm_response(request_body: bytes):
             log.error(error_message)
             raise Exception(error_message)
 
-    client = httpx.AsyncClient(timeout=httpx.Timeout(TIMEOUT))
+    client = httpx.AsyncClient(timeout=httpx.Timeout(TIMEOUT), headers=COMMON_HEADERS)
     # Forward the request to the vllm backend
-    req = client.build_request("POST", VLLM_URL, content=modified_request_body)
+    req = client.build_request("POST", url, content=modified_request_body)
     response = await client.send(req, stream=True)
     # If not 200, return the error response directly without streaming
     if response.status_code != 200:
@@ -95,16 +107,23 @@ async def stream_vllm_response(request_body: bytes):
 
 
 # Function to handle non-streaming responses
-async def non_stream_vllm_response(request_body: bytes):
+async def non_stream_vllm_response(
+    url: str, request_body: bytes, modified_request_body: bytes
+):
+    """
+    Handle non-streaming responses
+    Args:
+        request_body: The original request body
+        modified_request_body: The modified enhanced request body
+    Returns:
+        The response data
+    """
     request_sha256 = sha256(request_body).hexdigest()
 
-    # Modify the request body to use the correct model path and lowercase model name
-    request_json = json.loads(request_body)
-    request_json["model"] = request_json["model"].lower()
-    modified_request_body = json.dumps(request_json)
-
-    async with httpx.AsyncClient(timeout=httpx.Timeout(TIMEOUT)) as client:
-        response = await client.post(VLLM_URL, content=modified_request_body)
+    async with httpx.AsyncClient(
+        timeout=httpx.Timeout(TIMEOUT), headers=COMMON_HEADERS
+    ) as client:
+        response = await client.post(url, content=modified_request_body)
         if response.status_code != 200:
             raise HTTPException(status_code=response.status_code, detail=response.text)
 
@@ -121,6 +140,26 @@ async def non_stream_vllm_response(request_body: bytes):
             raise Exception("Chat id could not be extracted from the response")
 
         return response_data
+
+
+def strip_empty_tool_calls(payload: dict) -> dict:
+    """
+    Strip empty tool calls from the payload
+    To fix the bug of:
+    https://github.com/vllm-project/vllm/pull/14054
+    """
+    if "messages" not in payload:
+        return payload
+
+    filtered_messages = []
+    for message in payload["messages"]:
+        # If the message has tool_calls, filter out empty ones
+        if "tool_calls" in message and len(message["tool_calls"]) == 0:
+            del message["tool_calls"]
+        filtered_messages.append(message)
+
+    payload["messages"] = filtered_messages
+    return payload
 
 
 # Get attestation report of intel quote and nvidia payload
@@ -157,21 +196,52 @@ async def attestation_report(request: Request, signing_algo: str = None):
 # VLLM Chat completions
 @router.post("/chat/completions", dependencies=[Depends(verify_authorization_header)])
 async def chat_completions(request: Request):
-    # Get the JSON body from the incoming request
+    # Keep original request body to calculate the request hash for attestation
     request_body = await request.body()
     request_json = json.loads(request_body)
+    modified_json = strip_empty_tool_calls(request_json)
 
     # Check if the request is for streaming or non-streaming
-    is_stream = request_json.get(
-        "stream", True
-    )  # Default to streaming if not specified
+    is_stream = modified_json.get(
+        "stream", False
+    )  # Default to non-streaming if not specified
 
+    modified_request_body = json.dumps(modified_json).encode("utf-8")
     if is_stream:
         # Create a streaming response
-        return await stream_vllm_response(request_body)
+        return await stream_vllm_response(VLLM_URL, request_body, modified_request_body)
     else:
         # Handle non-streaming response
-        response_data = await non_stream_vllm_response(request_body)
+        response_data = await non_stream_vllm_response(
+            VLLM_URL, request_body, modified_request_body
+        )
+        return JSONResponse(content=response_data)
+
+
+# VLLM completions
+@router.post("/completions", dependencies=[Depends(verify_authorization_header)])
+async def completions(request: Request):
+    # Keep original request body to calculate the request hash for attestation
+    request_body = await request.body()
+    request_json = json.loads(request_body)
+    modified_json = strip_empty_tool_calls(request_json)
+
+    # Check if the request is for streaming or non-streaming
+    is_stream = modified_json.get(
+        "stream", False
+    )  # Default to non-streaming if not specified
+
+    modified_request_body = json.dumps(modified_json).encode("utf-8")
+    if is_stream:
+        # Create a streaming response
+        return await stream_vllm_response(
+            VLLM_COMPLETIONS_URL, request_body, modified_request_body
+        )
+    else:
+        # Handle non-streaming response
+        response_data = await non_stream_vllm_response(
+            VLLM_COMPLETIONS_URL, request_body, modified_request_body
+        )
         return JSONResponse(content=response_data)
 
 
@@ -217,3 +287,12 @@ async def metrics(request: Request):
         if response.status_code != 200:
             raise HTTPException(status_code=response.status_code, detail=response.text)
         return PlainTextResponse(response.text)
+
+
+@router.get("/models")
+async def models(request: Request):
+    async with httpx.AsyncClient(timeout=httpx.Timeout(TIMEOUT)) as client:
+        response = await client.get(VLLM_MODELS_URL)
+        if response.status_code != 200:
+            raise HTTPException(status_code=response.status_code, detail=response.text)
+        return JSONResponse(content=response.json())
