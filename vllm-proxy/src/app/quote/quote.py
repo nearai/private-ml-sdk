@@ -3,11 +3,13 @@ import json
 import os
 
 import eth_utils
+import pynvml
 import web3
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from dstack_sdk import TappdClient
 from eth_account.messages import encode_defunct
+from nv_attestation_sdk import attestation
 from verifier import cc_admin
 
 ED25519 = "ed25519"
@@ -27,7 +29,7 @@ class Quote:
         self.raw_acct = None
         self.ed25519_key = None
 
-    def init(self, force=False):
+    def init(self, force=False) -> dict:
         """
         Initialize the quote object.
         If the signing address is already set, it will not be re-initialized.
@@ -44,15 +46,46 @@ class Quote:
             raise ValueError("Unsupported signing method")
 
         self.intel_quote = self.get_quote(self.public_key)
-
-        gpu_evidence_list = cc_admin.collect_gpu_evidence_remote(self.public_key)
-        self.nvidia_payload = self.build_payload(self.public_key, gpu_evidence_list)
+        self.nvidia_payload = self.get_gpu_payload(self.public_key)
 
         return dict(
             intel_quote=self.intel_quote,
             nvidia_payload=self.nvidia_payload,
             signing_address=self.signing_address,
         )
+
+    def get_gpu_payload(self, public_key: str) -> str:
+        gpu_evidence_list = []
+        try:
+            pynvml.nvmlInit()
+            device_count = pynvml.nvmlDeviceGetCount()
+            if device_count == 1:
+                gpu_evidence_list = cc_admin.collect_gpu_evidence_remote(public_key)
+            else:
+                switch_attestation_mode = "REMOTE"
+                switch_attester = attestation.Attestation()
+                switch_attester.set_name("HOPPER")
+                switch_attester.set_nonce(public_key)
+                switch_attester.set_claims_version("2.0")
+                switch_attester.set_ocsp_nonce_disabled(True)
+                switch_attester.add_verifier(
+                    dev=attestation.Devices.GPU,
+                    env=attestation.Environment[switch_attestation_mode],
+                    url=None,
+                    evidence="",
+                )
+                gpu_evidence_list = switch_attester.get_evidence(
+                    options={"ppcie_mode": False}
+                )
+        except pynvml.NVMLError as error:
+            raise Exception(f"CUDA Error: {error}")
+        finally:
+            pynvml.nvmlShutdown()
+
+        if len(gpu_evidence_list) == 0:
+            raise Exception("No GPU evidence found")
+
+        return self.build_payload(public_key, gpu_evidence_list)
 
     def init_ed25519(self):
         # Generate Ed25519 key pair
