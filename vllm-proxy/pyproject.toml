@@ -16,7 +16,7 @@ cachetools = "^5.5.0"
 dstack-sdk = "^0.1.5"
 cryptography = "^43.0.1"
 redis = "^5.2.1"
-nv-local-gpu-verifier = "^2.3.0"
+nv-ppcie-verifier = "^1.5.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.4"
