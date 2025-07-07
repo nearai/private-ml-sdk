@@ -174,11 +174,13 @@ async def attestation_report(request: Request, signing_algo: str = None):
             signing_address=ecdsa_quote.signing_address,
             intel_quote=ecdsa_quote.intel_quote,
             nvidia_payload=ecdsa_quote.nvidia_payload,
+            event_log=ecdsa_quote.event_log,
         ),
         ed25519=dict(
             signing_address=ed25519_quote.signing_address,
             intel_quote=ed25519_quote.intel_quote,
             nvidia_payload=ed25519_quote.nvidia_payload,
+            event_log=ed25519_quote.event_log,
         ),
     )
     cache.set_attestation(ecdsa_quote.signing_address, data)

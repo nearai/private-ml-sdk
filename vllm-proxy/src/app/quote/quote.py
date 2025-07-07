@@ -1,4 +1,3 @@
-import base64
 import json
 import os
 
@@ -25,6 +24,7 @@ class Quote:
         self.signing_address = None
         self.intel_quote = None
         self.nvidia_payload = None
+        self.event_log = None
 
         self.raw_acct = None
         self.ed25519_key = None
@@ -45,11 +45,12 @@ class Quote:
         else:
             raise ValueError("Unsupported signing method")
 
-        self.intel_quote = self.get_quote(self.public_key)
+        self.intel_quote, self.event_log = self.get_quote(self.public_key)
         self.nvidia_payload = self.get_gpu_payload(self.public_key)
 
         return dict(
             intel_quote=self.intel_quote,
+            event_log=self.event_log,
             nvidia_payload=self.nvidia_payload,
             signing_address=self.signing_address,
         )
@@ -112,9 +113,8 @@ class Quote:
 
         # Get quote for a message
         result = client.tdx_quote(public_key)
-        quote = bytes.fromhex(result.quote)
-        self.intel_quote = base64.b64encode(quote).decode("utf-8")
-        return result.quote
+        event_log = json.loads(result.event_log)
+        return result.quote, event_log
 
     def sign(self, content: str):
         if self.signing_method == ED25519:
