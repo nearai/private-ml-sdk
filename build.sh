@@ -66,6 +66,8 @@ VMM_RPC_LISTEN_PORT=$BASE_PORT
 VMM_PORT_MAPPING_ENABLED=true
 # Host API configuration, type of uint32
 VMM_VSOCK_LISTEN_PORT=$BASE_PORT
+# Whether to enable GPU support
+VMM_ENABLE_GPU=false
 
 KMS_RPC_LISTEN_PORT=$(($BASE_PORT + 1))
 GATEWAY_RPC_LISTEN_PORT=$(($BASE_PORT + 2))
@@ -74,8 +76,8 @@ GATEWAY_WG_INTERFACE=dgw-$USER
 GATEWAY_WG_LISTEN_PORT=$(($BASE_PORT + 3))
 GATEWAY_WG_IP=10.$SUBNET_INDEX.3.1
 GATEWAY_SERVE_PORT=$(($BASE_PORT + 4))
-GATEWAY_CERT=
-GATEWAY_KEY=
+GATEWAY_CERT=$CERBOT_WORKDIR/live/cert.pem
+GATEWAY_KEY=$CERBOT_WORKDIR/live/key.pem
 
 BIND_PUBLIC_IP=0.0.0.0
 
@@ -148,6 +150,9 @@ mandatory = false
 
 [core]
 cert_dir = "$CERTS_DIR"
+
+[core.gpu]
+enabled = $VMM_ENABLE_GPU
 
 [core.auth_api]
 type = "dev"
