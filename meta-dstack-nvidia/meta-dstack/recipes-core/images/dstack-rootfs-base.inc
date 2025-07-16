@@ -20,9 +20,11 @@ IMAGE_INSTALL = "\
     jq \
     chrony \
     chronyc \
-    qemu-guest-agent \
     dstack-zfs \
     kernel-module-tun \
+    kernel-module-fuse \
+    fuse3 \
+    fuse3-utils \
 "
 
 IMAGE_NAME_SUFFIX ?= ""
@@ -54,7 +56,7 @@ COMPATIBLE_HOST = "x86_64.*-linux"
 ROOTFS_POSTPROCESS_COMMAND += "remove_sysvinit_files;"
 ROOTFS_POSTPROCESS_COMMAND += "symlink_lib64;"
 IMAGE_FEATURES[validitems] += "nologin"
-ROOTFS_POSTPROCESS_COMMAND += '${@bb.utils.contains_any("IMAGE_FEATURES", [ 'nologin' ], "disable_getty_services", "",d)}'
+ROOTFS_POSTPROCESS_COMMAND += '${@bb.utils.contains_any("IMAGE_FEATURES", [ 'nologin' ], "disable_login", "",d)}'
 ROOTFS_POSTPROCESS_COMMAND += "mkdirs;"
 
 
@@ -75,7 +77,7 @@ symlink_lib64() {
     ln -s lib ${IMAGE_ROOTFS}/lib64
 }
 
-disable_getty_services() {
+disable_login() {
     for srv in getty getty-pre; do
         rm -f ${IMAGE_ROOTFS}/etc/systemd/system/${srv}.target
         rm -f ${IMAGE_ROOTFS}/usr/lib/systemd/system/${srv}.target
@@ -86,6 +88,42 @@ disable_getty_services() {
         rm -f ${IMAGE_ROOTFS}/usr/lib/systemd/system/${srv}.service
         rm -f ${IMAGE_ROOTFS}/usr/lib/systemd/system/${srv}@.service
     done
+
+    # Login/console related
+    rm -rf ${IMAGE_ROOTFS}/usr/sbin/getty
+    rm -rf ${IMAGE_ROOTFS}/usr/sbin/agetty
+    rm -rf ${IMAGE_ROOTFS}/usr/bin/login
+    rm -rf ${IMAGE_ROOTFS}/usr/bin/loginctl
+    rm -rf ${IMAGE_ROOTFS}/etc/systemd/system/getty.target.wants
+
+    # Console fonts and keymaps
+    rm -rf ${IMAGE_ROOTFS}/usr/share/consolefonts
+    rm -rf ${IMAGE_ROOTFS}/usr/share/keymaps
+
+    # Systemd components we don't need
+    rm -rf ${IMAGE_ROOTFS}/usr/bin/systemd-tty-ask-password-agent
+    rm -rf ${IMAGE_ROOTFS}/usr/lib/systemd/system/debug-shell.service
+    rm -rf ${IMAGE_ROOTFS}/usr/lib/systemd/system/suspend.target
+    rm -rf ${IMAGE_ROOTFS}/usr/lib/systemd/system/systemd-hibernate.service
+    rm -rf ${IMAGE_ROOTFS}/usr/lib/systemd/system/systemd-suspend-then-hibernate.service
+    rm -rf ${IMAGE_ROOTFS}/usr/lib/systemd/systemd-hibernate-resume
+    rm -rf ${IMAGE_ROOTFS}/usr/lib/systemd/system-generators/systemd-getty-generator
+    rm -rf ${IMAGE_ROOTFS}/usr/lib/systemd/systemd-logind
+    rm -rf ${IMAGE_ROOTFS}/usr/lib/systemd/system/systemd-logind.service
+    rm -rf ${IMAGE_ROOTFS}/usr/lib/systemd/system/multi-user.target.wants/systemd-logind.service
+    rm -rf ${IMAGE_ROOTFS}/usr/lib/systemd/logind.conf.d
+    rm -rf ${IMAGE_ROOTFS}/usr/lib/systemd/system/graphical.target.wants
+    rm -rf ${IMAGE_ROOTFS}/usr/lib/systemd/user/graphical-session.target
+    rm -rf ${IMAGE_ROOTFS}/usr/lib/systemd/user/graphical-session-pre.target
+    rm -rf ${IMAGE_ROOTFS}/usr/lib/systemd/user/bluetooth.target
+
+    # Polkit
+    rm -rf ${IMAGE_ROOTFS}/usr/share/polkit-1
+
+    # Factory defaults
+    rm -rf ${IMAGE_ROOTFS}/usr/share/factory
+
+    > ${IMAGE_ROOTFS}/etc/securetty
 }
 
 mkdirs() {
@@ -97,4 +135,11 @@ mkdirs() {
     mkdir -p ${IMAGE_ROOTFS}/etc/wireguard
     mkdir -p ${IMAGE_ROOTFS}/var/lib/docker
     ln -sf dstack ${IMAGE_ROOTFS}/tapp
+
+    # Aliases passwd files to a subdirectory
+    mkdir -p ${IMAGE_ROOTFS}/etc/users
+    mv ${IMAGE_ROOTFS}/etc/passwd ${IMAGE_ROOTFS}/etc/users/
+    mv ${IMAGE_ROOTFS}/etc/shadow ${IMAGE_ROOTFS}/etc/users/
+    ln -s users/passwd ${IMAGE_ROOTFS}/etc/passwd
+    ln -s users/shadow ${IMAGE_ROOTFS}/etc/shadow
 }

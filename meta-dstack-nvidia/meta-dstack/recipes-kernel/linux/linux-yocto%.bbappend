@@ -1,5 +1,7 @@
 FILESEXTRAPATHS:prepend := "${THISDIR}/files:"
 
+LINUX_VERSION_EXTENSION = "-dstack"
+
 SRC_URI += "file://dstack-docker.cfg \
             file://dstack-docker.scc \
             file://dstack-tdx.cfg \
@@ -10,6 +12,7 @@ SRC_URI += "file://dstack-docker.cfg \
 KERNEL_FEATURES:append = " features/cgroups/cgroups.scc \
                           features/overlayfs/overlayfs.scc \
                           features/netfilter/netfilter.scc \
+                          features/fuse/fuse.scc \
                           cfg/fs/squashfs.scc \
                           dstack-docker.scc \
                           dstack.scc"
