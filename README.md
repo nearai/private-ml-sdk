@@ -99,7 +99,7 @@ dstack lsgpu
 dstack new app.yaml -o my-gpu-cvm \
     --local-key-provider \
     --gpu 18:00.0 \
-    --image images/dstack-nvidia-dev-0.3.3 \
+    --image images/dstack-nvidia-dev-0.5.3 \
     -c 2 -m 4G -d 100G \
     --port tcp:127.0.0.1:10022:22 \
     --port tcp:0.0.0.0:8888:8888
@@ -133,7 +133,8 @@ services:
 ### Verifying the TDX CVM Service Status
 
 1. **SSH into the CVM**
-   Note: SSH access is only available when using the development image `images/dstack-nvidia-dev-0.3.3`.
+   Note: SSH access is only available when using the development image
+   `images/dstack-nvidia-dev-*`.
 
    Execute the following command to establish an SSH connection:
    ```bash
