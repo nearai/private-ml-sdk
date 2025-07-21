@@ -1,21 +1,34 @@
-From 5c718d0c37c65e845b100060fbc08cae26412c35 Mon Sep 17 00:00:00 2001
+From 596f2e3bd7292c8f22cfe01ec95b8b46ce1bc8a1 Mon Sep 17 00:00:00 2001
 From: Kevin Wang <wy721@qq.com>
 Date: Mon, 4 Nov 2024 04:35:18 +0000
-Subject: [PATCH 5/5] Declare ProcessLibraryConstructorList
+Subject: [PATCH] Declare ProcessLibraryConstructorList
 
 ---
- OvmfPkg/Sec/SecMain.c | 1 +
- 1 file changed, 1 insertion(+)
+ OvmfPkg/IntelTdx/Sec/SecMain.c | 1 +
+ OvmfPkg/Sec/SecMain.c          | 1 +
+ 2 files changed, 2 insertions(+)
 
+diff --git a/OvmfPkg/IntelTdx/Sec/SecMain.c b/OvmfPkg/IntelTdx/Sec/SecMain.c
+index 7f2d28af95..fcc6b97c28 100644
+--- a/OvmfPkg/IntelTdx/Sec/SecMain.c
++++ b/OvmfPkg/IntelTdx/Sec/SecMain.c
+@@ -163,6 +163,7 @@ SecCoreStartupWithStack (
+   IdtDescriptor.Base  = (UINTN)&IdtTableInStack.IdtTable;
+   IdtDescriptor.Limit = (UINT16)(sizeof (IdtTableInStack.IdtTable) - 1);
+ 
++  void ProcessLibraryConstructorList ();
+   ProcessLibraryConstructorList ();
+ 
+   //
 diff --git a/OvmfPkg/Sec/SecMain.c b/OvmfPkg/Sec/SecMain.c
-index d13a948509..2a44c4ed24 100644
+index d13a948509..58c48c967c 100644
 --- a/OvmfPkg/Sec/SecMain.c
 +++ b/OvmfPkg/Sec/SecMain.c
 @@ -885,6 +885,7 @@ SecCoreStartupWithStack (
      InitializeCpuExceptionHandlers (NULL);
    }
  
-+  void ProcessLibraryConstructorList (void);
++  void ProcessLibraryConstructorList ();
    ProcessLibraryConstructorList ();
  
    if (!SevEsIsEnabled ()) {
