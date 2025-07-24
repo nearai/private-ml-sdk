@@ -9,6 +9,8 @@ export REPO_ROOT=${THIS_DIR}
 
 ${THIS_DIR}/${META_SUBDIR}/repro-build/repro-build.sh -n
 
+mkdir -p images/
+
 for file in ${THIS_DIR}/${META_SUBDIR}/repro-build/dist/dstack-*.tar.gz; do
     # Skip files ending with -mr.tar.gz
     if [[ "$file" == *-mr.tar.gz ]]; then
