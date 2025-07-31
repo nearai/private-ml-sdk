@@ -56,8 +56,8 @@ cd private-ml-sdk/
 If everything goes well, you should see the images files in `private-ml-sdk/images/`.
 
 There are two image directories:
-- `dstack-nvidia-0.3.0/`: the production image without developer tools.
-- `dstack-nvidia-dev-0.3.0/`: the development image with developer tools, such as `sshd`, `strace`.
+- `dstack-nvidia-0.5.3/`: the production image without developer tools.
+- `dstack-nvidia-dev-0.5.3/`: the development image with developer tools, such as `sshd`, `strace`.
 
 ### Run the Local KMS
 
