@@ -103,6 +103,7 @@ async def stream_vllm_response(
     return StreamingResponse(
         generate_stream(response),
         background=BackgroundTasks([response.aclose, client.aclose]),
+        media_type="text/event-stream",
     )
 
 
