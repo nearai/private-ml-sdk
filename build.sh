@@ -228,6 +228,7 @@ base_domain = "$GATEWAY_PUBLIC_DOMAIN"
 listen_addr = "$BIND_PUBLIC_IP"
 listen_port = $GATEWAY_SERVE_PORT
 agent_port = $AGENT_PORT
+app_address_ns_prefix = "_tapp-address"
 EOF
 
     # dstack-vmm config
