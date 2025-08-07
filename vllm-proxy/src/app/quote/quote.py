@@ -1,4 +1,3 @@
-import base64
 import json
 import os
 
@@ -25,6 +24,8 @@ class Quote:
         self.signing_address = None
         self.intel_quote = None
         self.nvidia_payload = None
+        self.event_log = None
+        self.info = None
 
         self.raw_acct = None
         self.ed25519_key = None
@@ -45,13 +46,16 @@ class Quote:
         else:
             raise ValueError("Unsupported signing method")
 
-        self.intel_quote = self.get_quote(self.public_key)
+        self.intel_quote, self.event_log = self.get_quote(self.public_key)
         self.nvidia_payload = self.get_gpu_payload(self.public_key)
+        self.info = self.get_info()
 
         return dict(
+            signing_address=self.signing_address,
             intel_quote=self.intel_quote,
             nvidia_payload=self.nvidia_payload,
-            signing_address=self.signing_address,
+            event_log=self.event_log,
+            info=self.info,
         )
 
     def get_gpu_payload(self, public_key: str) -> str:
@@ -112,9 +116,29 @@ class Quote:
 
         # Get quote for a message
         result = client.tdx_quote(public_key)
-        quote = bytes.fromhex(result.quote)
-        self.intel_quote = base64.b64encode(quote).decode("utf-8")
-        return result.quote
+        event_log = json.loads(result.event_log)
+        return result.quote, event_log
+
+    def get_info(self):
+        import http.client
+        import socket
+
+        data = json.dumps({"report_data": self.public_key})
+        headers = {"Content-Type": "application/json"}
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
+            sock.connect("/var/run/tappd.sock")
+
+            conn = http.client.HTTPConnection("localhost")
+            conn.sock = sock
+
+            try:
+                conn.request(
+                    "POST", "/prpc/Tappd.Info?json", body=data, headers=headers
+                )
+                response = conn.getresponse().read().decode()
+                return json.loads(response)
+            finally:
+                conn.close()
 
     def sign(self, content: str):
         if self.signing_method == ED25519:
