@@ -7,6 +7,7 @@ echo "Image: $IMAGE"
 
 # Build the Docker image with the specified version
 docker build \
+    --no-cache \
     -f docker/Dockerfile \
     -t $IMAGE \
     .
