@@ -45,3 +45,7 @@ def invalid_signing_algo():
 
 def http_exception(status_code: int, message: str):
     return error(status_code=status_code, message=message, type="http_exception")
+
+
+def not_found(message: str):
+    return error(status_code=404, message=message, type="not_found")

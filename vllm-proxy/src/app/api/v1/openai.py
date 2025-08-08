@@ -4,11 +4,14 @@ from hashlib import sha256
 
 import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
-from fastapi.responses import (JSONResponse, PlainTextResponse,
-                               StreamingResponse)
+from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse
 
 from app.api.helper.auth import verify_authorization_header
-from app.api.response.response import error, invalid_signing_algo
+from app.api.response.response import (
+    invalid_signing_algo,
+    not_found,
+    unexpect_error,
+)
 from app.cache.cache import cache
 from app.logger import log
 from app.quote.quote import ECDSA, ED25519, ecdsa_quote, ed25519_quote
@@ -195,7 +198,7 @@ async def attestation_report(request: Request, signing_algo: str = None):
         return resp
     except Exception as e:
         log.error(f"Error parsing the attestations in cache: {e}")
-        return resp
+        return unexpect_error("Attestation parsing error")
 
 
 # VLLM Chat completions
@@ -255,7 +258,7 @@ async def completions(request: Request):
 async def signature(request: Request, chat_id: str, signing_algo: str = None):
     cache_value = cache.get_chat(chat_id)
     if cache_value is None:
-        return error("Chat id not found or expired", "chat_id_not_found")
+        return not_found("Chat id not found or expired")
 
     signature = None
     signing_algo = ECDSA if signing_algo is None else signing_algo
@@ -264,7 +267,8 @@ async def signature(request: Request, chat_id: str, signing_algo: str = None):
     try:
         value = json.loads(cache_value)
     except Exception as e:
-        return error(f"Failed to parse the cache value: {e}", "invalid_cache_value")
+        log.error(f"Failed to parse the cache value: {cache_value} {e}")
+        return unexpect_error("Failed to parse the cache value")
 
     signing_address = None
     if signing_algo == ECDSA:
