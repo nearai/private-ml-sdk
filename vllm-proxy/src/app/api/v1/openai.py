@@ -15,7 +15,7 @@ from app.quote.quote import ECDSA, ED25519, ecdsa_quote, ed25519_quote
 
 router = APIRouter(tags=["openai"])
 
-VLLM_BASE_URL = "http://vllm:8000"
+VLLM_BASE_URL = os.getenv("VLLM_BASE_URL", "http://vllm:8000")
 VLLM_URL = f"{VLLM_BASE_URL}/v1/chat/completions"
 VLLM_COMPLETIONS_URL = f"{VLLM_BASE_URL}/v1/completions"
 VLLM_METRICS_URL = f"{VLLM_BASE_URL}/metrics"
