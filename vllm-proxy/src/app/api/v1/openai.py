@@ -158,7 +158,7 @@ def strip_empty_tool_calls(payload: dict) -> dict:
     filtered_messages = []
     for message in payload["messages"]:
         # If the message has tool_calls, filter out empty ones
-        if "tool_calls" in message and len(message["tool_calls"]) == 0:
+        if "tool_calls" in message and message["tool_calls"] is not None and len(message["tool_calls"]) == 0:
             del message["tool_calls"]
         filtered_messages.append(message)
 
