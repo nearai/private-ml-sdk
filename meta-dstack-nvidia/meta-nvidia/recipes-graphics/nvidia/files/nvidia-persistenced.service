@@ -1,7 +1,7 @@
 [Unit]
 Description=NVIDIA Persistence Daemon
 Wants=syslog.target
-Before=app-compose.service
+Before=app-compose.service docker.service
 After=systemd-modules-load.service modprobe@.service
 
 [Service]
