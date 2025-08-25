@@ -65,18 +65,36 @@ async def stream_vllm_response(
 
     async def generate_stream(response):
         nonlocal chat_id, h
+        first_chunk_processed = False
+        
         async for chunk in response.aiter_text():
+            if not chunk.strip():
+                continue
+                
             h.update(chunk.encode())
-            # Extract the cache key (data.id) from the first chunk
-            if not chat_id:
+            
+            # Extract the cache key (data.id) from the first valid chunk
+            if not first_chunk_processed:
                 try:
-                    data = chunk.strip("data: ").strip()
-                    chunk_data = json.loads(data)
+                    # Try to parse as is first
+                    try:
+                        chunk_data = json.loads(chunk.strip())
+                    except json.JSONDecodeError:
+                        # If that fails, try stripping 'data: ' prefix if it exists
+                        if chunk.startswith('data: '):
+                            chunk_data = json.loads(chunk[6:].strip())
+                        else:
+                            # If still can't parse, skip this chunk for ID extraction
+                            yield chunk
+                            continue
+                            
                     chat_id = chunk_data.get("id")
+                    first_chunk_processed = True
                 except Exception as e:
-                    error_message = f"Failed to parse the first chunk: {e}"
-                    log.error(error_message)
-                    raise Exception(error_message)
+                    log.warning(f"Warning parsing first chunk: {e}")
+                    # Don't fail hard, just continue processing
+                    first_chunk_processed = True
+            
             yield chunk
 
         response_sha256 = h.hexdigest()
