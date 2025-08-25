@@ -23,6 +23,7 @@ IMAGE_INSTALL = "\
     dstack-zfs \
     kernel-module-tun \
     kernel-module-fuse \
+    kernel-module-br-netfilter \
     fuse3 \
     fuse3-utils \
     pigz \
