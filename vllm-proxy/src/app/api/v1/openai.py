@@ -4,7 +4,7 @@ from hashlib import sha256
 
 import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
-from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse
+from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse, Response
 
 from app.api.helper.auth import verify_authorization_header
 from app.api.response.response import (
@@ -65,35 +65,21 @@ async def stream_vllm_response(
 
     async def generate_stream(response):
         nonlocal chat_id, h
-        first_chunk_processed = False
-        
         async for chunk in response.aiter_text():
-            if not chunk.strip():
-                continue
-                
             h.update(chunk.encode())
-            
-            # Extract the cache key (data.id) from the first valid chunk
-            if not first_chunk_processed:
+            # Extract the cache key (data.id) from the first chunk
+            if not chat_id:
+                data = chunk.strip("data: ").strip()
+                if not data:
+                    continue
                 try:
-                    # Try to parse as is first
-                    try:
-                        chunk_data = json.loads(chunk.strip())
-                    except json.JSONDecodeError:
-                        # If that fails, try stripping 'data: ' prefix if it exists
-                        if chunk.startswith('data: '):
-                            chunk_data = json.loads(chunk[6:].strip())
-                        else:
-                            # If still can't parse, skip this chunk for ID extraction
-                            yield chunk
-                            continue
-                            
+                    chunk_data = json.loads(data)
                     chat_id = chunk_data.get("id")
-                    first_chunk_processed = True
                 except Exception as e:
-                    log.warning(f"Warning parsing first chunk: {e}")
+                    error_message = f"Failed to parse the first chunk: {e}\n The original data is: {data}"
+                    log.error(error_message)
                     # Don't fail hard, just continue processing
-                    first_chunk_processed = True
+                    chat_id = None
             
             yield chunk
 
@@ -117,9 +103,30 @@ async def stream_vllm_response(
         error_content = await response.aread()
         await response.aclose()
         await client.aclose()
-        return JSONResponse(
-            status_code=response.status_code, content=json.loads(error_content)
-        )
+        
+        content_type = response.headers.get('content-type', '')
+        content = error_content.decode() if error_content else ''
+        
+        if 'application/json' in content_type:
+            try:
+                content = json.loads(content) if content else {}
+            except json.JSONDecodeError:
+                pass  # If it's not valid JSON, return as text
+        # If content is a dictionary and content_type is JSON, convert to JSON string
+        if isinstance(content, dict) and 'application/json' in content_type:
+            content = json.dumps(content)
+            
+        if 'application/json' in content_type:
+            return JSONResponse(
+                content=content,
+                status_code=response.status_code,
+            )
+        else:
+            return Response(
+                content=content,
+                status_code=response.status_code,
+                media_type=content_type,
+            )
 
     return StreamingResponse(
         generate_stream(response),
@@ -176,7 +183,7 @@ def strip_empty_tool_calls(payload: dict) -> dict:
     filtered_messages = []
     for message in payload["messages"]:
         # If the message has tool_calls, filter out empty ones
-        if "tool_calls" in message and message["tool_calls"] is not None and len(message["tool_calls"]) == 0:
+        if "tool_calls" in message and isinstance(message["tool_calls"], list) and len(message["tool_calls"]) == 0:
             del message["tool_calls"]
         filtered_messages.append(message)
 
