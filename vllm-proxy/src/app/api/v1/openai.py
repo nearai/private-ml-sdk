@@ -78,8 +78,7 @@ async def stream_vllm_response(
                 except Exception as e:
                     error_message = f"Failed to parse the first chunk: {e}\n The original data is: {data}"
                     log.error(error_message)
-                    # Don't fail hard, just continue processing
-                    chat_id = None
+                    raise Exception(error_message)
             
             yield chunk
 
@@ -104,29 +103,11 @@ async def stream_vllm_response(
         await response.aclose()
         await client.aclose()
         
-        content_type = response.headers.get('content-type', '')
-        content = error_content.decode() if error_content else ''
-        
-        if 'application/json' in content_type:
-            try:
-                content = json.loads(content) if content else {}
-            except json.JSONDecodeError:
-                pass  # If it's not valid JSON, return as text
-        # If content is a dictionary and content_type is JSON, convert to JSON string
-        if isinstance(content, dict) and 'application/json' in content_type:
-            content = json.dumps(content)
-            
-        if 'application/json' in content_type:
-            return JSONResponse(
-                content=content,
-                status_code=response.status_code,
-            )
-        else:
-            return Response(
-                content=content,
-                status_code=response.status_code,
-                media_type=content_type,
-            )
+        return Response(
+            content=error_content,
+            status_code=response.status_code,
+            headers=response.headers,
+        )
 
     return StreamingResponse(
         generate_stream(response),
