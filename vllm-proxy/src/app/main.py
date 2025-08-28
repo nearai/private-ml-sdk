@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException, Request
 
 from .api import router as api_router
-from .api.response.response import ok, unexpect_error, http_exception
+from .api.response.response import ok, error, http_exception
 from .logger import log
 
 app = FastAPI()
@@ -25,4 +25,10 @@ async def global_exception_handler(request: Request, exc: Exception):
         return http_exception(exc.status_code, exc.detail)
 
     log.error(f"Unhandled exception: {exc}")
-    return unexpect_error()
+    return error(
+        status_code=500,
+        message=str(exc),
+        type=type(exc).__name__,
+        param=None,
+        code=None,
+    )

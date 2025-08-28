@@ -4,7 +4,7 @@ from hashlib import sha256
 
 import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
-from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse
+from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse, Response
 
 from app.api.helper.auth import verify_authorization_header
 from app.api.response.response import (
@@ -69,14 +69,17 @@ async def stream_vllm_response(
             h.update(chunk.encode())
             # Extract the cache key (data.id) from the first chunk
             if not chat_id:
+                data = chunk.strip("data: ").strip()
+                if not data:
+                    continue
                 try:
-                    data = chunk.strip("data: ").strip()
                     chunk_data = json.loads(data)
                     chat_id = chunk_data.get("id")
                 except Exception as e:
-                    error_message = f"Failed to parse the first chunk: {e}"
+                    error_message = f"Failed to parse the first chunk: {e}\n The original data is: {data}"
                     log.error(error_message)
                     raise Exception(error_message)
+            
             yield chunk
 
         response_sha256 = h.hexdigest()
@@ -99,8 +102,11 @@ async def stream_vllm_response(
         error_content = await response.aread()
         await response.aclose()
         await client.aclose()
-        return JSONResponse(
-            status_code=response.status_code, content=json.loads(error_content)
+        
+        return Response(
+            content=error_content,
+            status_code=response.status_code,
+            headers=response.headers,
         )
 
     return StreamingResponse(
@@ -158,7 +164,7 @@ def strip_empty_tool_calls(payload: dict) -> dict:
     filtered_messages = []
     for message in payload["messages"]:
         # If the message has tool_calls, filter out empty ones
-        if "tool_calls" in message and len(message["tool_calls"]) == 0:
+        if "tool_calls" in message and isinstance(message["tool_calls"], list) and len(message["tool_calls"]) == 0:
             del message["tool_calls"]
         filtered_messages.append(message)
 
