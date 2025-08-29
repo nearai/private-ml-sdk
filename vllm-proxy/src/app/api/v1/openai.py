@@ -70,7 +70,7 @@ async def stream_vllm_response(
             # Extract the cache key (data.id) from the first chunk
             if not chat_id:
                 data = chunk.strip("data: ").strip()
-                if not data:
+                if not data or data == "[DONE]":
                     continue
                 try:
                     chunk_data = json.loads(data)
