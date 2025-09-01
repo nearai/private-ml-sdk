@@ -4,7 +4,12 @@ from hashlib import sha256
 
 import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
-from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse, Response
+from fastapi.responses import (
+    JSONResponse,
+    PlainTextResponse,
+    Response,
+    StreamingResponse,
+)
 
 from app.api.helper.auth import verify_authorization_header
 from app.api.response.response import (
@@ -23,6 +28,7 @@ VLLM_URL = f"{VLLM_BASE_URL}/v1/chat/completions"
 VLLM_COMPLETIONS_URL = f"{VLLM_BASE_URL}/v1/completions"
 VLLM_METRICS_URL = f"{VLLM_BASE_URL}/metrics"
 VLLM_MODELS_URL = f"{VLLM_BASE_URL}/v1/models"
+VLLM_VERSION_URL = f"{VLLM_BASE_URL}/version"
 TIMEOUT = 60 * 10
 
 COMMON_HEADERS = {"Content-Type": "application/json", "Accept": "application/json"}
@@ -79,7 +85,7 @@ async def stream_vllm_response(
                     error_message = f"Failed to parse the first chunk: {e}\n The original data is: {data}"
                     log.error(error_message)
                     raise Exception(error_message)
-            
+
             yield chunk
 
         response_sha256 = h.hexdigest()
@@ -102,7 +108,7 @@ async def stream_vllm_response(
         error_content = await response.aread()
         await response.aclose()
         await client.aclose()
-        
+
         return Response(
             content=error_content,
             status_code=response.status_code,
@@ -164,7 +170,11 @@ def strip_empty_tool_calls(payload: dict) -> dict:
     filtered_messages = []
     for message in payload["messages"]:
         # If the message has tool_calls, filter out empty ones
-        if "tool_calls" in message and isinstance(message["tool_calls"], list) and len(message["tool_calls"]) == 0:
+        if (
+            "tool_calls" in message
+            and isinstance(message["tool_calls"], list)
+            and len(message["tool_calls"]) == 0
+        ):
             del message["tool_calls"]
         filtered_messages.append(message)
 
@@ -308,6 +318,15 @@ async def metrics(request: Request):
 async def models(request: Request):
     async with httpx.AsyncClient(timeout=httpx.Timeout(TIMEOUT)) as client:
         response = await client.get(VLLM_MODELS_URL)
+        if response.status_code != 200:
+            raise HTTPException(status_code=response.status_code, detail=response.text)
+        return JSONResponse(content=response.json())
+
+
+@router.get("/version")
+async def get_version(request: Request):
+    async with httpx.AsyncClient(timeout=httpx.Timeout(TIMEOUT)) as client:
+        response = await client.get(VLLM_VERSION_URL)
         if response.status_code != 200:
             raise HTTPException(status_code=response.status_code, detail=response.text)
         return JSONResponse(content=response.json())
