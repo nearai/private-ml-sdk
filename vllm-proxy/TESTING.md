@@ -10,8 +10,8 @@ python -m venv .venv
 
 2. Install dependencies:
 ```bash
-pip install -r src/requirements.txt
-pip install pytest pytest-asyncio respx
+pip install -r requirements.txt
+pip install -r test-requirements.txt
 ```
 
 ## Running Tests
@@ -111,6 +111,6 @@ The test suite is designed to run in CI environments without special hardware:
     python -m venv .venv
     . .venv/bin/activate
     pip install -r src/requirements.txt
-    pip install pytest pytest-asyncio respx
+    pip install -r src/test-requirements.txt
     ./run_tests.sh
 ```

@@ -36,8 +36,8 @@ docker compose up -d
 ```bash
 python -m venv .venv
 . .venv/bin/activate
-pip install -r src/requirements.txt
-pip install pytest pytest-asyncio respx
+pip install -r requirements.txt
+pip install -r test-requirements.txt
 ./run_tests.sh
 ```
 
