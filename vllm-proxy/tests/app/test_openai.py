@@ -13,10 +13,14 @@ from tests.app.test_helpers import (
 # Setup all mocks before importing app
 setup_test_environment()
 
+# Replace the quote module with our mock before importing app
+import sys
+sys.modules['app.quote.quote'] = __import__('tests.app.mock_quote', fromlist=[''])
+
 # Now we can safely import app code
 from app.main import app
 from app.api.v1.openai import VLLM_URL
-from app.quote.quote import quote, ED25519, ECDSA
+from tests.app.mock_quote import ED25519, ECDSA, ecdsa_quote, ed25519_quote
 
 client = TestClient(app)
 
@@ -143,11 +147,19 @@ async def test_signature_default_algo():
     chat_id = "test-chat-123"
     test_data = "test request:response data"
     
+    # Create properly formatted cache data
+    cache_data = json.dumps({
+        "text": test_data,
+        "signature_ecdsa": ecdsa_quote.sign(test_data),
+        "signing_address_ecdsa": ecdsa_quote.signing_address,
+        "signature_ed25519": ed25519_quote.sign(test_data),
+        "signing_address_ed25519": ed25519_quote.signing_address,
+    })
+    
     # Only mock the cache, use real quote object
     with patch('app.api.v1.openai.cache') as mock_cache:
         # Setup mock cache
-        mock_cache.__contains__.return_value = True
-        mock_cache.__getitem__.return_value = test_data
+        mock_cache.get_chat.return_value = cache_data
 
         # Make request
         response = client.get(
@@ -168,14 +180,22 @@ async def test_signature_explicit_algo():
     chat_id = "test-chat-123"
     test_data = "test request:response data"
     
+    # Create properly formatted cache data
+    cache_data = json.dumps({
+        "text": test_data,
+        "signature_ecdsa": ecdsa_quote.sign(test_data),
+        "signing_address_ecdsa": ecdsa_quote.signing_address,
+        "signature_ed25519": ed25519_quote.sign(test_data),
+        "signing_address_ed25519": ed25519_quote.signing_address,
+    })
+    
     # Only mock the cache, use real quote object
     with patch('app.api.v1.openai.cache') as mock_cache:
         # Setup mock cache
-        mock_cache.__contains__.return_value = True
-        mock_cache.__getitem__.return_value = test_data
+        mock_cache.get_chat.return_value = cache_data
 
         # Make request with explicit algorithm
-        explicit_algo = ECDSA if quote.signing_method == ED25519 else ED25519  # Use opposite of default
+        explicit_algo = ED25519  # Use ED25519 explicitly
         response = client.get(
             f"/v1/signature/{chat_id}?signing_algo={explicit_algo}",
             headers={"Authorization": TEST_AUTH_HEADER}
@@ -192,10 +212,18 @@ async def test_signature_explicit_algo():
 async def test_signature_invalid_algo():
     chat_id = "test-chat-123"
     
+    # Create properly formatted cache data
+    cache_data = json.dumps({
+        "text": "test data",
+        "signature_ecdsa": "test_sig",
+        "signing_address_ecdsa": "test_addr",
+        "signature_ed25519": "test_sig",
+        "signing_address_ed25519": "test_addr",
+    })
+    
     # Only mock the cache
     with patch('app.api.v1.openai.cache') as mock_cache:
-        mock_cache.__contains__.return_value = True
-        mock_cache.__getitem__.return_value = "test data"
+        mock_cache.get_chat.return_value = cache_data
     
         # Make request with invalid algorithm
         response = client.get(
@@ -214,9 +242,9 @@ async def test_signature_invalid_algo():
 async def test_signature_chat_not_found():
     chat_id = "nonexistent-chat"
     
-    # Mock the cache to return False for contains check
+    # Mock the cache to return None for chat not found
     with patch('app.api.v1.openai.cache') as mock_cache:
-        mock_cache.__contains__.return_value = False
+        mock_cache.get_chat.return_value = None
 
         # Make request
         response = client.get(

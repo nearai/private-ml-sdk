@@ -9,3 +9,5 @@ node_modules/
 target/
 **/*.rs.bk
 /images
+/.venv
+sync.sh

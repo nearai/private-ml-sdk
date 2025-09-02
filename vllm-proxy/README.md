@@ -31,7 +31,14 @@ docker compose up -d
 
 ## Tests
 
+### Quick Start
+
 ```bash
-cd src
-python -m unittest tests
+python -m venv .venv
+. .venv/bin/activate
+pip install -r src/requirements.txt
+pip install pytest pytest-asyncio respx
+./run_tests.sh
 ```
+
+For detailed testing documentation, see [TESTING.md](./TESTING.md).
