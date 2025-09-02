@@ -4,7 +4,7 @@
 
 1. Create and activate a Python virtual environment:
 ```bash
-python -m venv .venv
+python3 -m venv .venv
 . .venv/bin/activate
 ```
 
@@ -108,9 +108,9 @@ The test suite is designed to run in CI environments without special hardware:
 # Example GitHub Actions workflow
 - name: Run tests
   run: |
-    python -m venv .venv
+    python3 -m venv .venv
     . .venv/bin/activate
-    pip install -r src/requirements.txt
-    pip install -r src/test-requirements.txt
+    pip install -r requirements.txt
+    pip install -r test-requirements.txt
     ./run_tests.sh
 ```
