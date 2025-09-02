@@ -1,10 +1,7 @@
-from typing import Union
-from hashlib import sha256
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import JSONResponse
 
 from .api import router as api_router
-from .api.response.response import ok, error, unexpect_error
+from .api.response.response import ok, error, http_exception
 from .logger import log
 
 app = FastAPI()
@@ -25,8 +22,13 @@ async def global_exception_handler(request: Request, exc: Exception):
     # handle HTTPException
     if isinstance(exc, HTTPException):
         log.error(f"HTTPException: {exc.detail}")
-        # return JSONResponse(status_code=exc.status_code, content=exc.detail)
-        return error(exc.detail)
+        return http_exception(exc.status_code, exc.detail)
 
     log.error(f"Unhandled exception: {exc}")
-    return JSONResponse(status_code=500, content=unexpect_error())
+    return error(
+        status_code=500,
+        message=str(exc),
+        type=type(exc).__name__,
+        param=None,
+        code=None,
+    )

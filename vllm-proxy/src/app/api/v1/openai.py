@@ -5,10 +5,19 @@ from typing import Optional
 
 import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Header
-from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse, Response
+from fastapi.responses import (
+    JSONResponse,
+    PlainTextResponse,
+    StreamingResponse,
+    Response,
+)
 
 from app.api.helper.auth import verify_authorization_header
-from app.api.response.response import error, invalid_signing_algo
+from app.api.response.response import (
+    invalid_signing_algo,
+    not_found,
+    unexpect_error,
+)
 from app.cache.cache import cache
 from app.logger import log
 from app.quote.quote import ECDSA, ED25519, ecdsa_quote, ed25519_quote
@@ -77,14 +86,17 @@ async def stream_vllm_response(
             h.update(chunk.encode())
             # Extract the cache key (data.id) from the first chunk
             if not chat_id:
+                data = chunk.strip("data: ").strip()
+                if not data or data == "[DONE]":
+                    continue
                 try:
-                    data = chunk.strip("data: ").strip()
                     chunk_data = json.loads(data)
                     chat_id = chunk_data.get("id")
                 except Exception as e:
-                    error_message = f"Failed to parse the first chunk: {e}"
+                    error_message = f"Failed to parse the first chunk: {e}\n The original data is: {data}"
                     log.error(error_message)
                     raise Exception(error_message)
+
             yield chunk
 
         response_sha256 = h.hexdigest()
@@ -107,8 +119,11 @@ async def stream_vllm_response(
         error_content = await response.aread()
         await response.aclose()
         await client.aclose()
-        return JSONResponse(
-            status_code=response.status_code, content=json.loads(error_content)
+
+        return Response(
+            content=error_content,
+            status_code=response.status_code,
+            headers=response.headers,
         )
 
     return StreamingResponse(
@@ -177,7 +192,11 @@ def strip_empty_tool_calls(payload: dict) -> dict:
     filtered_messages = []
     for message in payload["messages"]:
         # If the message has tool_calls, filter out empty ones
-        if "tool_calls" in message and len(message["tool_calls"]) == 0:
+        if (
+            "tool_calls" in message
+            and isinstance(message["tool_calls"], list)
+            and len(message["tool_calls"]) == 0
+        ):
             del message["tool_calls"]
         filtered_messages.append(message)
 
@@ -217,7 +236,7 @@ async def attestation_report(request: Request, signing_algo: str = None):
         return resp
     except Exception as e:
         log.error(f"Error parsing the attestations in cache: {e}")
-        return resp
+        return unexpect_error("Attestation parsing error")
 
 
 # VLLM Chat completions
@@ -285,7 +304,7 @@ async def completions(
 async def signature(request: Request, chat_id: str, signing_algo: str = None):
     cache_value = cache.get_chat(chat_id)
     if cache_value is None:
-        return error("Chat id not found or expired", "chat_id_not_found")
+        return not_found("Chat id not found or expired")
 
     signature = None
     signing_algo = ECDSA if signing_algo is None else signing_algo
@@ -294,7 +313,8 @@ async def signature(request: Request, chat_id: str, signing_algo: str = None):
     try:
         value = json.loads(cache_value)
     except Exception as e:
-        return error(f"Failed to parse the cache value: {e}", "invalid_cache_value")
+        log.error(f"Failed to parse the cache value: {cache_value} {e}")
+        return unexpect_error("Failed to parse the cache value")
 
     signing_address = None
     if signing_algo == ECDSA:
