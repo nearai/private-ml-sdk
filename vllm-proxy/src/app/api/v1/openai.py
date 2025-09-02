@@ -55,11 +55,18 @@ async def stream_vllm_response(
     Args:
         request_body: The original request body
         modified_request_body: The modified enhanced request body
-        request_hash: Optional hash from request header, using header hash if provided, otherwise calculate manually
+        request_hash: Optional hash from request header (X-Request-Hash). Used by trusted clients to provide
+                     pre-calculated request hash, avoiding redundant hash computation. Falls back to
+                     calculating hash from request_body if not provided
     Returns:
         A streaming response
     """
-    request_sha256 = request_hash if request_hash else sha256(request_body).hexdigest()
+    if request_hash:
+        request_sha256 = request_hash
+        log.info(f"Using client-provided request hash: {request_sha256}")
+    else:
+        request_sha256 = sha256(request_body).hexdigest()
+        log.debug(f"Calculated request hash: {request_sha256}")
 
     chat_id = None
     h = sha256()
@@ -123,11 +130,18 @@ async def non_stream_vllm_response(
     Args:
         request_body: The original request body
         modified_request_body: The modified enhanced request body
-        request_hash: Optional hash from request header, using header hash if provided, otherwise calculate manually
+        request_hash: Optional hash from request header (X-Request-Hash). Used by trusted clients to provide
+                     pre-calculated request hash, avoiding redundant hash computation. Falls back to
+                     calculating hash from request_body if not provided
     Returns:
         The response data
     """
-    request_sha256 = request_hash if request_hash else sha256(request_body).hexdigest()
+    if request_hash:
+        request_sha256 = request_hash
+        log.info(f"Using client-provided request hash: {request_sha256}")
+    else:
+        request_sha256 = sha256(request_body).hexdigest()
+        log.debug(f"Calculated request hash: {request_sha256}")
 
     async with httpx.AsyncClient(
         timeout=httpx.Timeout(TIMEOUT), headers=COMMON_HEADERS
