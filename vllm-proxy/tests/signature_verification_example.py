@@ -12,6 +12,10 @@ from web3 import Web3
 SUCCESS_EMOJI = "🟢"
 FAILURE_EMOJI = "🔴"
 
+# Global configuration
+BASE_URL = os.getenv("VLLM_BASE_URL")
+AUTH_TOKEN = os.getenv("AUTH_TOKEN")
+
 
 def calculate_request_hash(request_body: str):
     """Calculate SHA256 hash of request body string"""
@@ -79,8 +83,6 @@ def verify_signature(text, signature, signing_address):
 
 
 def verify_signature_for_chat(
-    base_url,
-    auth_token,
     chat_id,
     expected_request_hash=None,
     expected_response_hash=None,
@@ -92,8 +94,8 @@ def verify_signature_for_chat(
 
     print(f"\n--- {example_name} ---")
     sig_response = requests.get(
-        f"{base_url}/v1/signature/{chat_id}",
-        headers={"Authorization": f"Bearer {auth_token}"},
+        f"{BASE_URL}/v1/signature/{chat_id}",
+        headers={"Authorization": f"Bearer {AUTH_TOKEN}"},
     )
 
     if sig_response.status_code == 200:
@@ -125,18 +127,27 @@ def verify_signature_for_chat(
         print(f"Failed to get signature: {sig_response.status_code}")
 
 
-def example_streaming_with_hash(
-    base_url, auth_token, request_body_str, calculated_hash
-):
+def example_streaming_with_hash():
     """Example 1: Streaming request with pre-calculated hash"""
+
+    # Streaming request payload
+    request_body = {
+        "model": "meta/llama-3.3-70b-instruct",
+        "messages": [{"role": "user", "content": "Hello, how are you?"}],
+        "stream": True,
+        "max_tokens": 1,
+    }
+    request_body_str = json.dumps(request_body)
+    calculated_hash = calculate_request_hash(request_body_str)
+
     print("=== Example 1: Streaming request with pre-calculated hash ===")
     print(f"Calculated request hash: {calculated_hash}")
 
     response = requests.post(
-        f"{base_url}/v1/chat/completions",
+        f"{BASE_URL}/v1/chat/completions",
         headers={
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {auth_token}",
+            "Authorization": f"Bearer {AUTH_TOKEN}",
             "X-Request-Hash": calculated_hash,
         },
         data=request_body_str,
@@ -150,18 +161,34 @@ def example_streaming_with_hash(
     print(f"Chat ID: {chat_id}")
     print(f"Calculated response hash: {response_hash}")
 
-    return chat_id, response_hash
+    # Verify signature
+    verify_signature_for_chat(
+        chat_id,
+        calculated_hash,
+        response_hash,
+        "Streaming with X-Request-Hash",
+    )
 
 
-def example_streaming_without_hash(base_url, auth_token, request_body_str):
+def example_streaming_without_hash():
     """Example 2: Streaming request without hash header"""
+
+    # Streaming request payload
+    request_body = {
+        "model": "meta/llama-3.3-70b-instruct",
+        "messages": [{"role": "user", "content": "Hello, how are you?"}],
+        "stream": True,
+        "max_tokens": 1,
+    }
+    request_body_str = json.dumps(request_body)
+
     print("\n=== Example 2: Streaming request without hash (let server calculate) ===")
 
     response = requests.post(
-        f"{base_url}/v1/chat/completions",
+        f"{BASE_URL}/v1/chat/completions",
         headers={
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {auth_token}",
+            "Authorization": f"Bearer {AUTH_TOKEN}",
         },
         data=request_body_str,
         stream=True,
@@ -174,21 +201,36 @@ def example_streaming_without_hash(base_url, auth_token, request_body_str):
 
     print(f"Chat ID: {chat_id}")
 
-    return chat_id, response_hash
+    # Verify signature
+    verify_signature_for_chat(
+        chat_id,
+        None,
+        response_hash,
+        "Streaming without X-Request-Hash",
+    )
 
 
-def example_non_streaming_with_hash(
-    base_url, auth_token, request_body_str, calculated_hash
-):
+def example_non_streaming_with_hash():
     """Example 3: Non-streaming request with pre-calculated hash"""
+
+    # Non-streaming request payload
+    request_body = {
+        "model": "meta/llama-3.3-70b-instruct",
+        "messages": [{"role": "user", "content": "Hello, how are you?"}],
+        "stream": False,
+        "max_tokens": 1,
+    }
+    request_body_str = json.dumps(request_body)
+    calculated_hash = calculate_request_hash(request_body_str)
+
     print("\n=== Example 3: Non-streaming request with pre-calculated hash ===")
     print(f"Calculated request hash: {calculated_hash}")
 
     response = requests.post(
-        f"{base_url}/v1/chat/completions",
+        f"{BASE_URL}/v1/chat/completions",
         headers={
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {auth_token}",
+            "Authorization": f"Bearer {AUTH_TOKEN}",
             "X-Request-Hash": calculated_hash,
         },
         data=request_body_str,
@@ -201,18 +243,34 @@ def example_non_streaming_with_hash(
     print(f"Chat ID: {chat_id}")
     print(f"Calculated response hash: {response_hash}")
 
-    return chat_id, response_hash
+    # Verify signature
+    verify_signature_for_chat(
+        chat_id,
+        calculated_hash,
+        response_hash,
+        "Non-streaming with X-Request-Hash",
+    )
 
 
-def example_non_streaming_without_hash(base_url, auth_token, request_body_str):
+def example_non_streaming_without_hash():
     """Example 4: Non-streaming request without hash header"""
+
+    # Non-streaming request payload
+    request_body = {
+        "model": "meta/llama-3.3-70b-instruct",
+        "messages": [{"role": "user", "content": "Hello, how are you?"}],
+        "stream": False,
+        "max_tokens": 1,
+    }
+    request_body_str = json.dumps(request_body)
+
     print("\n=== Example 4: Non-streaming request without hash ===")
 
     response = requests.post(
-        f"{base_url}/v1/chat/completions",
+        f"{BASE_URL}/v1/chat/completions",
         headers={
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {auth_token}",
+            "Authorization": f"Bearer {AUTH_TOKEN}",
         },
         data=request_body_str,
     )
@@ -224,83 +282,20 @@ def example_non_streaming_without_hash(base_url, auth_token, request_body_str):
     print(f"Chat ID: {chat_id}")
     print(f"Calculated response hash: {response_hash}")
 
-    return chat_id, response_hash
+    # Verify signature
+    verify_signature_for_chat(
+        chat_id,
+        None,
+        response_hash,
+        "Non-streaming without X-Request-Hash",
+    )
 
 
 def main():
-    base_url = os.getenv("VLLM_BASE_URL")
-    auth_token = os.getenv("AUTH_TOKEN")
-
-    # Streaming request payload
-    stream_request_body = {
-        "model": "meta/llama-3.3-70b-instruct",
-        "messages": [{"role": "user", "content": "Hello, how are you?"}],
-        "stream": True,
-        "max_tokens": 1,
-    }
-    stream_request_str = json.dumps(stream_request_body)
-    stream_calculated_hash = calculate_request_hash(stream_request_str)
-
-    # Non-streaming request payload
-    non_stream_request_body = {
-        "model": "meta/llama-3.3-70b-instruct",
-        "messages": [{"role": "user", "content": "Hello, how are you?"}],
-        "stream": False,
-        "max_tokens": 1,
-    }
-    non_stream_request_str = json.dumps(
-        non_stream_request_body, separators=(",", ":"), sort_keys=True
-    )
-    non_stream_calculated_hash = calculate_request_hash(non_stream_request_str)
-
-    # Run all four examples
-    chat_id1, response_hash1 = example_streaming_with_hash(
-        base_url, auth_token, stream_request_str, stream_calculated_hash
-    )
-    chat_id2, response_hash2 = example_streaming_without_hash(
-        base_url, auth_token, stream_request_str
-    )
-    chat_id3, response_hash3 = example_non_streaming_with_hash(
-        base_url, auth_token, non_stream_request_str, non_stream_calculated_hash
-    )
-    chat_id4, response_hash4 = example_non_streaming_without_hash(
-        base_url, auth_token, non_stream_request_str
-    )
-
-    # Verify signatures for all requests
-    print("\n=== Signature Verification for All Requests ===")
-    verify_signature_for_chat(
-        base_url,
-        auth_token,
-        chat_id1,
-        stream_calculated_hash,
-        response_hash1,
-        "Streaming with X-Request-Hash",
-    )
-    verify_signature_for_chat(
-        base_url,
-        auth_token,
-        chat_id2,
-        None,
-        response_hash2,
-        "Streaming without X-Request-Hash",
-    )
-    verify_signature_for_chat(
-        base_url,
-        auth_token,
-        chat_id3,
-        non_stream_calculated_hash,
-        response_hash3,
-        "Non-streaming with X-Request-Hash",
-    )
-    verify_signature_for_chat(
-        base_url,
-        auth_token,
-        chat_id4,
-        None,
-        response_hash4,
-        "Non-streaming without X-Request-Hash",
-    )
+    example_streaming_with_hash()
+    example_streaming_without_hash()
+    example_non_streaming_with_hash()
+    example_non_streaming_without_hash()
 
 
 if __name__ == "__main__":
