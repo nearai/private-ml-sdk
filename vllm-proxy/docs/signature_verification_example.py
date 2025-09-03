@@ -2,19 +2,30 @@
 import json
 import os
 import requests
+import sys
 
+from typing import Optional
 from hashlib import sha256
 from eth_account.messages import encode_defunct
 from eth_account import Account
 from web3 import Web3
 
 # Emojis for status indication
-SUCCESS_EMOJI = "🟢"
-FAILURE_EMOJI = "🔴"
+SUCCESS_EMOJI = "✅"
+FAILURE_EMOJI = "❌"
 
-# Global configuration
-BASE_URL = os.getenv("VLLM_BASE_URL")
-AUTH_TOKEN = os.getenv("AUTH_TOKEN")
+
+def get_required_env(key: str, default: Optional[str] = None) -> str:
+    """Get environment variable with validation."""
+    value = os.getenv(key, default)
+    if not value:
+        print(f"ERROR: Required environment variable {key} is not set")
+        sys.exit(1)
+    return value
+
+
+BASE_URL = get_required_env("VLLM_BASE_URL")
+AUTH_TOKEN = get_required_env("AUTH_TOKEN")
 
 
 def calculate_request_hash(request_body: str):
@@ -181,8 +192,10 @@ def example_streaming_without_hash():
         "max_tokens": 1,
     }
     request_body_str = json.dumps(request_body)
+    calculated_hash = calculate_request_hash(request_body_str)
 
     print("\n=== Example 2: Streaming request without hash (let server calculate) ===")
+    print(f"Calculated request hash: {calculated_hash}")
 
     response = requests.post(
         f"{BASE_URL}/v1/chat/completions",
@@ -200,11 +213,12 @@ def example_streaming_without_hash():
     response_hash = calculate_response_hash(response_text)
 
     print(f"Chat ID: {chat_id}")
+    print(f"Calculated response hash: {response_hash}")
 
     # Verify signature
     verify_signature_for_chat(
         chat_id,
-        None,
+        calculated_hash,
         response_hash,
         "Streaming without X-Request-Hash",
     )
@@ -263,8 +277,10 @@ def example_non_streaming_without_hash():
         "max_tokens": 1,
     }
     request_body_str = json.dumps(request_body)
+    calculated_hash = calculate_request_hash(request_body_str)
 
     print("\n=== Example 4: Non-streaming request without hash ===")
+    print(f"Calculated request hash: {calculated_hash}")
 
     response = requests.post(
         f"{BASE_URL}/v1/chat/completions",
@@ -285,7 +301,7 @@ def example_non_streaming_without_hash():
     # Verify signature
     verify_signature_for_chat(
         chat_id,
-        None,
+        calculated_hash,
         response_hash,
         "Non-streaming without X-Request-Hash",
     )

@@ -45,4 +45,4 @@ pip install -r test-requirements.txt
 ./run_tests.sh
 ```
 
-For detailed testing documentation, see [TESTING.md](./TESTING.md).
+For detailed testing documentation, see [TESTING.md](./docs/TESTING.md).
