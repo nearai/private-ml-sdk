@@ -169,7 +169,7 @@ async def non_stream_vllm_response(
         # Cache the request-response pair using the chat ID
         chat_id = response_data.get("id")
         if chat_id:
-            response_sha256 = sha256(response.text.encode("utf-8")).hexdigest()
+            response_sha256 = sha256(response.content).hexdigest()
             cache.set_chat(
                 chat_id, json.dumps(sign_chat(f"{request_sha256}:{response_sha256}"))
             )
