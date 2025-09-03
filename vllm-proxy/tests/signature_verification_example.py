@@ -8,6 +8,10 @@ from eth_account.messages import encode_defunct
 from eth_account import Account
 from web3 import Web3
 
+# Emojis for status indication
+SUCCESS_EMOJI = "🟢"
+FAILURE_EMOJI = "🔴"
+
 
 def calculate_request_hash(request_body: str):
     """Calculate SHA256 hash of request body string"""
@@ -101,21 +105,22 @@ def verify_signature_for_chat(
 
         print(f"\nHash verification:")
         if expected_request_hash:
-            print(
-                f"Request hash matches: {expected_request_hash == request_hash_from_server}"
-            )
+            request_match = expected_request_hash == request_hash_from_server
+            request_emoji = SUCCESS_EMOJI if request_match else FAILURE_EMOJI
+            print(f"{request_emoji} Request hash matches: {request_match}")
         else:
             print(f"Request hash from server: {request_hash_from_server}")
 
         if expected_response_hash:
-            print(
-                f"Response hash matches: {expected_response_hash == response_hash_from_server}"
-            )
+            response_match = expected_response_hash == response_hash_from_server
+            response_emoji = SUCCESS_EMOJI if response_match else FAILURE_EMOJI
+            print(f"{response_emoji} Response hash matches: {response_match}")
 
         signature = sig_data["signature"]
         signing_address = sig_data["signing_address"]
         is_valid = verify_signature(text, signature, signing_address)
-        print(f"Signature valid: {is_valid}")
+        emoji = SUCCESS_EMOJI if is_valid else FAILURE_EMOJI
+        print(f"{emoji} Signature valid: {is_valid}")
     else:
         print(f"Failed to get signature: {sig_response.status_code}")
 
@@ -233,9 +238,7 @@ def main():
         "stream": True,
         "max_tokens": 1,
     }
-    stream_request_str = json.dumps(
-        stream_request_body, separators=(",", ":"), sort_keys=True
-    )
+    stream_request_str = json.dumps(stream_request_body)
     stream_calculated_hash = calculate_request_hash(stream_request_str)
 
     # Non-streaming request payload
