@@ -138,7 +138,7 @@ def verify_signature_for_chat(
         print(f"Failed to get signature: {sig_response.status_code}")
 
 
-def example_streaming_with_hash():
+def example_streaming_direct():
     """Example 1: Streaming request with pre-calculated hash"""
 
     # Streaming request payload
@@ -181,7 +181,7 @@ def example_streaming_with_hash():
     )
 
 
-def example_streaming_without_hash():
+def example_streaming_routed():
     """Example 2: Streaming request without hash header"""
 
     # Streaming request payload
@@ -224,7 +224,7 @@ def example_streaming_without_hash():
     )
 
 
-def example_non_streaming_with_hash():
+def example_non_streaming_direct():
     """Example 3: Non-streaming request with pre-calculated hash"""
 
     # Non-streaming request payload
@@ -266,7 +266,7 @@ def example_non_streaming_with_hash():
     )
 
 
-def example_non_streaming_without_hash():
+def example_non_streaming_routed():
     """Example 4: Non-streaming request without hash header"""
 
     # Non-streaming request payload
@@ -308,10 +308,10 @@ def example_non_streaming_without_hash():
 
 
 def main():
-    example_streaming_with_hash()
-    example_streaming_without_hash()
-    example_non_streaming_with_hash()
-    example_non_streaming_without_hash()
+    example_streaming_direct()
+    example_streaming_routed()
+    example_non_streaming_direct()
+    example_non_streaming_routed()
 
 
 if __name__ == "__main__":
