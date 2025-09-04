@@ -1,10 +1,16 @@
 import json
 import os
 from hashlib import sha256
+from typing import Optional
 
 import httpx
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
-from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Header
+from fastapi.responses import (
+    JSONResponse,
+    PlainTextResponse,
+    StreamingResponse,
+    Response,
+)
 
 from app.api.helper.auth import verify_authorization_header
 from app.api.response.response import (
@@ -48,17 +54,28 @@ def sign_chat(text: str):
 
 
 async def stream_vllm_response(
-    url: str, request_body: bytes, modified_request_body: bytes
+    url: str,
+    request_body: bytes,
+    modified_request_body: bytes,
+    request_hash: Optional[str] = None,
 ):
     """
     Handle streaming vllm request
     Args:
         request_body: The original request body
         modified_request_body: The modified enhanced request body
+        request_hash: Optional hash from request header (X-Request-Hash). Used by trusted clients to provide
+                     pre-calculated request hash, avoiding redundant hash computation. Falls back to
+                     calculating hash from request_body if not provided
     Returns:
         A streaming response
     """
-    request_sha256 = sha256(request_body).hexdigest()
+    if request_hash:
+        request_sha256 = request_hash
+        log.info(f"Using client-provided request hash: {request_sha256}")
+    else:
+        request_sha256 = sha256(request_body).hexdigest()
+        log.debug(f"Calculated request hash: {request_sha256}")
 
     chat_id = None
     h = sha256()
@@ -79,7 +96,7 @@ async def stream_vllm_response(
                     error_message = f"Failed to parse the first chunk: {e}\n The original data is: {data}"
                     log.error(error_message)
                     raise Exception(error_message)
-            
+
             yield chunk
 
         response_sha256 = h.hexdigest()
@@ -102,7 +119,7 @@ async def stream_vllm_response(
         error_content = await response.aread()
         await response.aclose()
         await client.aclose()
-        
+
         return Response(
             content=error_content,
             status_code=response.status_code,
@@ -118,17 +135,28 @@ async def stream_vllm_response(
 
 # Function to handle non-streaming responses
 async def non_stream_vllm_response(
-    url: str, request_body: bytes, modified_request_body: bytes
+    url: str,
+    request_body: bytes,
+    modified_request_body: bytes,
+    request_hash: Optional[str] = None,
 ):
     """
     Handle non-streaming responses
     Args:
         request_body: The original request body
         modified_request_body: The modified enhanced request body
+        request_hash: Optional hash from request header (X-Request-Hash). Used by trusted clients to provide
+                     pre-calculated request hash, avoiding redundant hash computation. Falls back to
+                     calculating hash from request_body if not provided
     Returns:
         The response data
     """
-    request_sha256 = sha256(request_body).hexdigest()
+    if request_hash:
+        request_sha256 = request_hash
+        log.info(f"Using client-provided request hash: {request_sha256}")
+    else:
+        request_sha256 = sha256(request_body).hexdigest()
+        log.debug(f"Calculated request hash: {request_sha256}")
 
     async with httpx.AsyncClient(
         timeout=httpx.Timeout(TIMEOUT), headers=COMMON_HEADERS
@@ -141,8 +169,7 @@ async def non_stream_vllm_response(
         # Cache the request-response pair using the chat ID
         chat_id = response_data.get("id")
         if chat_id:
-            response_text = json.dumps(response_data)
-            response_sha256 = sha256(response_text.encode()).hexdigest()
+            response_sha256 = sha256(response.content).hexdigest()
             cache.set_chat(
                 chat_id, json.dumps(sign_chat(f"{request_sha256}:{response_sha256}"))
             )
@@ -164,7 +191,11 @@ def strip_empty_tool_calls(payload: dict) -> dict:
     filtered_messages = []
     for message in payload["messages"]:
         # If the message has tool_calls, filter out empty ones
-        if "tool_calls" in message and isinstance(message["tool_calls"], list) and len(message["tool_calls"]) == 0:
+        if (
+            "tool_calls" in message
+            and isinstance(message["tool_calls"], list)
+            and len(message["tool_calls"]) == 0
+        ):
             del message["tool_calls"]
         filtered_messages.append(message)
 
@@ -209,32 +240,10 @@ async def attestation_report(request: Request, signing_algo: str = None):
 
 # VLLM Chat completions
 @router.post("/chat/completions", dependencies=[Depends(verify_authorization_header)])
-async def chat_completions(request: Request):
-    # Keep original request body to calculate the request hash for attestation
-    request_body = await request.body()
-    request_json = json.loads(request_body)
-    modified_json = strip_empty_tool_calls(request_json)
-
-    # Check if the request is for streaming or non-streaming
-    is_stream = modified_json.get(
-        "stream", False
-    )  # Default to non-streaming if not specified
-
-    modified_request_body = json.dumps(modified_json).encode("utf-8")
-    if is_stream:
-        # Create a streaming response
-        return await stream_vllm_response(VLLM_URL, request_body, modified_request_body)
-    else:
-        # Handle non-streaming response
-        response_data = await non_stream_vllm_response(
-            VLLM_URL, request_body, modified_request_body
-        )
-        return JSONResponse(content=response_data)
-
-
-# VLLM completions
-@router.post("/completions", dependencies=[Depends(verify_authorization_header)])
-async def completions(request: Request):
+async def chat_completions(
+    request: Request,
+    x_request_hash: Optional[str] = Header(None, alias="X-Request-Hash"),
+):
     # Keep original request body to calculate the request hash for attestation
     request_body = await request.body()
     request_json = json.loads(request_body)
@@ -249,12 +258,42 @@ async def completions(request: Request):
     if is_stream:
         # Create a streaming response
         return await stream_vllm_response(
-            VLLM_COMPLETIONS_URL, request_body, modified_request_body
+            VLLM_URL, request_body, modified_request_body, x_request_hash
         )
     else:
         # Handle non-streaming response
         response_data = await non_stream_vllm_response(
-            VLLM_COMPLETIONS_URL, request_body, modified_request_body
+            VLLM_URL, request_body, modified_request_body, x_request_hash
+        )
+        return JSONResponse(content=response_data)
+
+
+# VLLM completions
+@router.post("/completions", dependencies=[Depends(verify_authorization_header)])
+async def completions(
+    request: Request,
+    x_request_hash: Optional[str] = Header(None, alias="X-Request-Hash"),
+):
+    # Keep original request body to calculate the request hash for attestation
+    request_body = await request.body()
+    request_json = json.loads(request_body)
+    modified_json = strip_empty_tool_calls(request_json)
+
+    # Check if the request is for streaming or non-streaming
+    is_stream = modified_json.get(
+        "stream", False
+    )  # Default to non-streaming if not specified
+
+    modified_request_body = json.dumps(modified_json).encode("utf-8")
+    if is_stream:
+        # Create a streaming response
+        return await stream_vllm_response(
+            VLLM_COMPLETIONS_URL, request_body, modified_request_body, x_request_hash
+        )
+    else:
+        # Handle non-streaming response
+        response_data = await non_stream_vllm_response(
+            VLLM_COMPLETIONS_URL, request_body, modified_request_body, x_request_hash
         )
         return JSONResponse(content=response_data)
 
