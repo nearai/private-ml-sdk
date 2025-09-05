@@ -272,6 +272,11 @@ class DStackManager:
                 gpus = {
                     "attach_mode": "all",
                 }
+            elif args.gpu == ['none'] or not args.gpu:
+                gpus = {
+                    "attach_mode": "listed",
+                    "gpus": []
+                }
             else:
                 gpus = {
                     "attach_mode": "listed",
