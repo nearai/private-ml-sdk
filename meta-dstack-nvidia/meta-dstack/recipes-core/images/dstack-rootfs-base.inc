@@ -23,8 +23,12 @@ IMAGE_INSTALL = "\
     dstack-zfs \
     kernel-module-tun \
     kernel-module-fuse \
+    kernel-module-br-netfilter \
+    kernel-module-xt-mark \
+    kernel-module-xt-connmark \
     fuse3 \
     fuse3-utils \
+    pigz \
 "
 
 IMAGE_NAME_SUFFIX ?= ""

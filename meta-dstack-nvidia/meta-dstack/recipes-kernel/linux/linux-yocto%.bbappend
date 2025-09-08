@@ -21,6 +21,9 @@ KERNEL_FEATURES:append = " ${@bb.utils.contains("DISTRO_FEATURES", "dm-verity", 
 
 KERNEL_FEATURES:append:tdx = " dstack-tdx.scc"
 
+# Enable BTF
+KERNEL_DEBUG = "True"
+
 do_deploy:append() {
     install -m 0644 ${B}/.config ${DEPLOYDIR}/kernel-config
 }
