@@ -43,11 +43,10 @@ check_config() {
 
 require_config() {
 
-# Base port for RPC services
-BASE_PORT=$(($RANDOM % 1000 * 10 + 10000))
-CID_POOL_START=$(($RANDOM % 1000 * 1000 + 20000))
-SUBNET_INDEX=$(($RANDOM % 240 + 10))
-
+    # Base port for RPC services
+    BASE_PORT=$(($RANDOM % 1000 * 10 + 10000))
+    CID_POOL_START=$(($RANDOM % 1000 * 1000 + 20000))
+    SUBNET_INDEX=$(($RANDOM % 240 + 10))
 
     cat <<EOF >build-config.sh.tpl
 # DNS domain of kms rpc and dstack-gateway rpc
@@ -130,7 +129,32 @@ build_guest() {
 
 build_cfg() {
     echo "Building config files"
-    GATEWAY_WG_KEY=$(wg genkey)
+    if [ -f "gateway.toml" ]; then
+        echo "Reading existing WireGuard key from gateway.toml"
+        GATEWAY_WG_KEY=$(awk '
+            /^\s*private_key\s*=/ {
+                # Remove leading whitespace and "private_key ="
+                gsub(/^\s*private_key\s*=\s*/, "")
+                # Remove quotes (both single and double)
+                gsub(/^["'"'"']|["'"'"']$/, "")
+                # Remove trailing whitespace and comments
+                gsub(/\s*(#.*)?$/, "")
+                if (length($0) > 0) {
+                    print $0
+                    exit
+                }
+            }
+        ' gateway.toml)
+
+        if [ -z "$GATEWAY_WG_KEY" ]; then
+            echo "Error: Could not read WireGuard key from existing gateway.toml"
+            exit 1
+        fi
+    else
+        echo "Generating new WireGuard key"
+        GATEWAY_WG_KEY=$(wg genkey)
+    fi
+
     GATEWAY_WG_PUBKEY=$(echo $GATEWAY_WG_KEY | wg pubkey)
     # kms
     cat <<EOF >kms.toml
@@ -228,6 +252,7 @@ base_domain = "$GATEWAY_PUBLIC_DOMAIN"
 listen_addr = "$BIND_PUBLIC_IP"
 listen_port = $GATEWAY_SERVE_PORT
 agent_port = $AGENT_PORT
+app_address_ns_prefix = "_tapp-address"
 EOF
 
     # dstack-vmm config

@@ -401,7 +401,8 @@ class DStackManager:
         with open(img_metadata_path, 'r') as f:
             img_metadata = json.load(f)
 
-        os_image_hash = open(os.path.join(image_path, 'digest.txt'), 'r').read().strip()
+        os_image_hash = open(os.path.join(
+            image_path, 'digest.txt'), 'r').read().strip()
         gen_vm_config(vm_dir, host_port, manifest, os_image_hash)
 
         mem_gb = manifest['memory'] // 1024
@@ -445,13 +446,13 @@ class DStackManager:
                 f"hostfwd={protocol}:{bind_address}:{host_port}-:{vm_port}")
         cmd_args.extend([
             '-device', 'virtio-net-pci,netdev=nic0_td',
-            '-netdev', f"user,id=nic0_td{','+','.join(port_args) if len(port_args) > 1 else ''}"
+            '-netdev', f"user,id=nic0_td{','+','.join(port_args) if len(port_args) > 0 else ''}"
         ])
 
         # Handle GPUs
-        gpus_cfg = manifest.get('gpus', {})
-        gpus = gpus_cfg.get('gpus', [])
-        bridges = gpus_cfg.get('bridges', [])
+        gpus_cfg = manifest.get('gpus') or {}
+        gpus = gpus_cfg.get('gpus') or []
+        bridges = gpus_cfg.get('bridges') or []
         dev_num = 1
         hugepages = manifest.get('hugepages', False)
         if hugepages:
@@ -533,7 +534,8 @@ class DStackManager:
                 numa_node = numa_node_of_device(gpus[0]['slot'])
             else:
                 numa_node = 0
-            cpus = open(f'/sys/devices/system/node/node{numa_node}/cpulist').read().strip()
+            cpus = open(
+                f'/sys/devices/system/node/node{numa_node}/cpulist').read().strip()
             base_args = ['taskset', '-c', cpus] + base_args
         cmd = base_args + cmd_args
         print(" \n".join(cmd))
