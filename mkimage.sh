@@ -98,10 +98,5 @@ if [ x$DSTACK_TAR_RELEASE = x1 ]; then
     rm -rf ${IMAGE_TAR} ${IMAGE_TAR_MR} ${IMAGE_TAR_NO_ROOTFS}
     echo "Archiving the output directory to ${IMAGE_TAR}"
     (cd $(dirname ${OUTPUT_DIR}) && tar -czvf ${IMAGE_TAR} $(basename $OUTPUT_DIR))
-
-    echo "Creating archive without rootfs files to ${IMAGE_TAR_NO_ROOTFS} -> ${IMAGE_TAR_MR}"
-    echo tar -C "${OUTPUT_DIR}" -czvf ${IMAGE_TAR_NO_ROOTFS} --exclude="rootfs.*"
-    tar -C "${OUTPUT_DIR}" -czvf ${IMAGE_TAR_MR} --exclude="rootfs.*" .
-    ln -sf $(basename ${IMAGE_TAR_MR}) ${IMAGE_TAR_NO_ROOTFS}
     echo
 fi
