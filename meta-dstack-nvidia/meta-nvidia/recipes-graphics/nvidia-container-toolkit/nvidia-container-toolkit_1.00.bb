@@ -45,8 +45,8 @@ do_install() {
     install -m 0644 ${WORKDIR}/config.toml ${D}/etc/nvidia-container-runtime/config.toml
 }
 
-INSANE_SKIP:${PN} += "already-stripped buildpaths"
-INSANE_SKIP:${PN}:append = "already-stripped buildpaths"
+INSANE_SKIP:${PN} += "already-stripped buildpaths textrel"
+INSANE_SKIP:${PN}:append = "already-stripped buildpaths textrel"
 FILES_${PN} += "/usr/local/*"
 
 RDEPENDS:${PN} = "\
