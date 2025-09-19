@@ -10,8 +10,26 @@ addlib() {
     ln -sf ${1}.so.1 ${D}${libdir}/${1}.so
 }
 
+# Function to add library if it exists
+addlib_if_exists() {
+    if [ -f ${NVIDIA_SRC}/${1}.so.${PV} ]; then
+        addlib ${1}
+        return 0
+    fi
+    return 1
+}
+
 addbin() {
     install -m 755 -D ${NVIDIA_SRC}/${1} ${D}${bindir}/${1}
+}
+
+# Function to add binary if it exists
+addbin_if_exists() {
+    if [ -f ${NVIDIA_SRC}/${1} ]; then
+        addbin ${1}
+        return 0
+    fi
+    return 1
 }
 
 do_install:append() {
@@ -37,6 +55,27 @@ do_install:append() {
     addlib libnvcuvid
     addlib libnvidia-pkcs11-openssl3
     addlib libnvidia-pkcs11
+    
+    # CUDA Toolkit libraries
+    addlib_if_exists libnvidia-ptxjitcompiler
+    
+    # Check for libnvptxcompiler (may be static library)
+    if [ -f ${NVIDIA_SRC}/libnvptxcompiler_static.a ]; then
+        cp ${NVIDIA_SRC}/libnvptxcompiler_static.a ${D}${libdir}/
+    fi
+    
+    # CUDA Runtime and compiler libraries  
+    if addlib_if_exists libnvrtc; then
+        ln -sf libnvrtc.so.${PV} ${D}${libdir}/libnvrtc.so.12
+    fi
+    
+    if addlib_if_exists libnvrtc-builtins; then
+        ln -sf libnvrtc-builtins.so.${PV} ${D}${libdir}/libnvrtc-builtins.so.12
+    fi
+    
+    # Additional CUDA libraries
+    addlib_if_exists libcudadebugger
+    addlib_if_exists libnvidia-nvjitlink
 
     cp ${NVIDIA_SRC}/libnvidia-api.so.1 ${D}${libdir}/
     ln -sf libnvidia-api.so.1 ${D}${libdir}/libnvidia-api.so
@@ -46,6 +85,10 @@ do_install:append() {
     addbin nvidia-debugdump
     addbin nvidia-persistenced
     addbin nvidia-modprobe
+    
+    # CUDA toolkit binaries if present
+    addbin_if_exists nvidia-cuda-mps-control
+    addbin_if_exists nvidia-cuda-mps-server
 
     # Copy the firmware to the target directory
 	install -d ${D}${libdir}/firmware/nvidia/${PV}
