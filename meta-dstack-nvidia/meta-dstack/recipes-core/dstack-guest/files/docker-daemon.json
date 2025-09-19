@@ -1,13 +1,16 @@
 {
+  "insecure-registries": [
+    "10.0.2.2:5000"
+  ],
   "log-driver": "json-file",
   "log-opts": {
     "max-size": "100m",
     "max-file": "10"
   },
   "runtimes": {
-      "nvidia": {
-          "args": [],
-          "path": "nvidia-container-runtime"
-      }
+    "nvidia": {
+      "args": [],
+      "path": "nvidia-container-runtime"
+    }
   }
 }
