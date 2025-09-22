@@ -37,6 +37,7 @@ do_install:append() {
     addlib libnvcuvid
     addlib libnvidia-pkcs11-openssl3
     addlib libnvidia-pkcs11
+    addlib libnvidia-ptxjitcompiler
 
     cp ${NVIDIA_SRC}/libnvidia-api.so.1 ${D}${libdir}/
     ln -sf libnvidia-api.so.1 ${D}${libdir}/libnvidia-api.so
