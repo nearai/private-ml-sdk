@@ -1,4 +1,7 @@
 {
+  "insecure-registries": [
+      "10.0.2.2:5000"
+  ],
   "log-driver": "json-file",
   "log-opts": {
     "max-size": "100m",
