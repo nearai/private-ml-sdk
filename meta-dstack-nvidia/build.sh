@@ -50,10 +50,10 @@ require_config() {
 
     cat <<EOF >build-config.sh.tpl
 # DNS domain of kms rpc and dstack-gateway rpc
-# *.1022.kvin.wang resolves to 10.0.2.2 which is the IP of the host system
+# *.1022.dstack.org resolves to 10.0.2.2 which is the IP of the host system
 # from CVMs point of view
-KMS_DOMAIN=kms.1022.kvin.wang
-GATEWAY_DOMAIN=gateway.1022.kvin.wang
+KMS_DOMAIN=kms.1022.dstack.org
+GATEWAY_DOMAIN=gateway.1022.dstack.org
 
 # CIDs allocated to VMs start from this number of type unsigned int32
 VMM_CID_POOL_START=$CID_POOL_START
@@ -80,7 +80,7 @@ GATEWAY_KEY=$CERBOT_WORKDIR/live/key.pem
 
 BIND_PUBLIC_IP=0.0.0.0
 
-GATEWAY_PUBLIC_DOMAIN=app.kvin.wang
+GATEWAY_PUBLIC_DOMAIN=<your domain for zt-https>
 
 # for certbot
 CERTBOT_ENABLED=false
