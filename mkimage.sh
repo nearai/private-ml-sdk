@@ -64,7 +64,7 @@ $Q cp $KERNEL_IMAGE ${OUTPUT_DIR}/
 $Q cp $OVMF_FIRMWARE ${OUTPUT_DIR}/
 $Q cp $ROOTFS_IMAGE ${OUTPUT_DIR}/rootfs.img.verity
 
-GIT_REVISION=$(git rev-parse HEAD)
+GIT_REVISION=$(git rev-parse HEAD 2>/dev/null || echo "<unknown>")
 echo "Generating metadata.json to ${OUTPUT_DIR}/metadata.json"
 
 KARG0="console=ttyS0 init=/init panic=1 systemd.unified_cgroup_hierarchy=0 net.ifnames=0 biosdevname=0"
