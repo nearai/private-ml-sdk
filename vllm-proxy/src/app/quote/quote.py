@@ -6,7 +6,7 @@ import pynvml
 import web3
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-from dstack_sdk import TappdClient
+from dstack_sdk import DstackClient
 from eth_account.messages import encode_defunct
 from nv_attestation_sdk import attestation
 from verifier import cc_admin
@@ -46,7 +46,7 @@ class Quote:
         else:
             raise ValueError("Unsupported signing method")
 
-        self.intel_quote, self.event_log = self.get_quote(self.public_key)
+        self.intel_quote, self.event_log = self.get_quote()
         self.nvidia_payload = self.get_gpu_payload(self.public_key)
         self.info = self.get_info()
 
@@ -110,35 +110,39 @@ class Quote:
             self.raw_acct._key_obj.public_key.to_bytes()
         ).hex()
 
-    def get_quote(self, public_key: str):
-        # Initialize the client
-        client = TappdClient()
+    def get_quote(self):
+        """Fetch a TDX quote using the wallet address as report data."""
+        if self.signing_address is None:
+            raise ValueError("Signing address must be initialized")
 
-        # Get quote for a message
-        result = client.tdx_quote(public_key)
+        client = DstackClient()
+        report_data = self._report_data(self.signing_address)
+        result = client.get_quote(report_data)
         event_log = json.loads(result.event_log)
         return result.quote, event_log
 
+    @staticmethod
+    def _report_data(wallet_address: str) -> bytes:
+        """Return the wallet address right-padded with zeros to 64 bytes."""
+        if wallet_address is None:
+            raise ValueError("Wallet address is required")
+
+        normalized = wallet_address[2:] if wallet_address.startswith("0x") else wallet_address
+
+        if len(normalized) not in (40, 64):
+            raise ValueError("Wallet address must be 20 or 32 bytes")
+
+        try:
+            address_bytes = bytes.fromhex(normalized)
+        except ValueError as exc:
+            raise ValueError("Wallet address must be a hex string") from exc
+
+        return address_bytes.ljust(64, b"\x00")
+
+
     def get_info(self):
-        import http.client
-        import socket
-
-        data = json.dumps({"report_data": self.public_key})
-        headers = {"Content-Type": "application/json"}
-        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
-            sock.connect("/var/run/tappd.sock")
-
-            conn = http.client.HTTPConnection("localhost")
-            conn.sock = sock
-
-            try:
-                conn.request(
-                    "POST", "/prpc/Tappd.Info?json", body=data, headers=headers
-                )
-                response = conn.getresponse().read().decode()
-                return json.loads(response)
-            finally:
-                conn.close()
+        client = DstackClient()
+        return client.info().model_dump()
 
     def sign(self, content: str):
         if self.signing_method == ED25519:

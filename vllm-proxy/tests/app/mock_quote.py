@@ -8,7 +8,7 @@ eth_utils = MagicMock()
 pynvml = MagicMock()
 web3 = MagicMock()
 Ed25519PrivateKey = MagicMock()
-TappdClient = MagicMock()
+DstackClient = MagicMock()
 encode_defunct = MagicMock()
 attestation = MagicMock()
 cc_admin = MagicMock()
@@ -90,9 +90,28 @@ class Quote:
         self.signing_address = self.raw_acct.address
         self.public_key = "mock_ecdsa_public_key"
     
-    def get_quote(self, public_key: str):
+    def get_quote(self):
         # Mock quote retrieval
-        return "mock_quote_" + public_key, {"test": "event_log"}
+        wallet = self.signing_address or "mock_wallet"
+        return f"mock_quote_{wallet}", {"test": "event_log"}
+
+    @staticmethod
+    def _report_data(wallet_address: str) -> bytes:
+        """Replicate report data encoding used by the real Quote."""
+        if wallet_address is None:
+            raise ValueError("Wallet address is required")
+
+        normalized = wallet_address[2:] if wallet_address.startswith("0x") else wallet_address
+
+        if len(normalized) not in (40, 64):
+            raise ValueError("Wallet address must be 20 or 32 bytes")
+
+        try:
+            address_bytes = bytes.fromhex(normalized)
+        except ValueError as exc:
+            raise ValueError("Wallet address must be a hex string") from exc
+
+        return address_bytes.ljust(64, b"\x00")
     
     def get_info(self):
         # Mock info retrieval

@@ -242,15 +242,9 @@ async def test_signature_invalid_algo():
         )
 
         # Verify error response
-        assert (
-            response.status_code == 200
-        )  # FastAPI converts errors to 200 with error content
+        assert response.status_code == 400
         response_data = response.json()
-        assert "error" in response_data
-        assert (
-            response_data["error"]["message"]
-            == "Invalid signing algorithm. Must be 'ed25519' or 'ecdsa'"
-        )
+        assert response_data["error"]["message"] == "Invalid signing algorithm. Must be 'ed25519' or 'ecdsa'"
         assert response_data["error"]["type"] == "invalid_signing_algo"
 
 
@@ -268,13 +262,10 @@ async def test_signature_chat_not_found():
         )
 
         # Verify error response
-        assert (
-            response.status_code == 200
-        )  # FastAPI converts errors to 200 with error content
+        assert response.status_code == 404
         response_data = response.json()
-        assert "error" in response_data
         assert response_data["error"]["message"] == "Chat id not found or expired"
-        assert response_data["error"]["type"] == "chat_id_not_found"
+        assert response_data["error"]["type"] == "not_found"
 
 
 @pytest.mark.asyncio
