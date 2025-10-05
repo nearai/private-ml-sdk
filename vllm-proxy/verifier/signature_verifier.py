@@ -1,362 +1,164 @@
 #!/usr/bin/env python3
-"""Verify signed responses returned by the Phala Cloud API."""
+"""Minimal guide for checking signed chat responses."""
 
-import argparse
+import base64
 import json
 import os
 import secrets
-import sys
 from hashlib import sha256
-from typing import Optional
 
 import requests
 from eth_account import Account
 from eth_account.messages import encode_defunct
-from web3 import Web3
 
-SUCCESS_EMOJI = "✅"
-FAILURE_EMOJI = "❌"
-
+API_KEY = os.environ["API_KEY"]
 MODEL = "phala/deepseek-chat-v3-0324"
 BASE_URL = "https://api.redpill.ai"
+GPU_VERIFIER = "https://nras.attestation.nvidia.com/v3/attest/gpu"
+INTEL_VERIFIER = "https://cloud-api.phala.network/api/v1/attestations/verify"
+SIGSTORE_PROVENANCE = (
+    "https://search.sigstore.dev/?hash=sha256:77fbe5f142419d6f52b04c0e749aa3facf9359dcd843f68d073e24d0eba7c5dd"
+)
 
 
-def get_required_env(key: str, default: Optional[str] = None) -> str:
-    value = os.getenv(key, default)
-    if not value:
-        print(f"ERROR: Required environment variable {key} is not set")
-        sys.exit(1)
-    return value
+def sha256_text(text):
+    return sha256(text.encode()).hexdigest()
 
 
-API_KEY = get_required_env("API_KEY")
+def fetch_signature(chat_id):
+    url = f"{BASE_URL}/v1/signature/{chat_id}?model={MODEL}"
+    headers = {"Authorization": f"Bearer {API_KEY}"}
+    return requests.get(url, headers=headers, timeout=30).json()
 
 
-def get_attestation_report(api_key: str, model: str, nonce_hex: str) -> dict:
-    url = f"{BASE_URL}/v1/attestation/report?model={model}&nonce={nonce_hex}"
-    headers = {
-        "accept": "application/json",
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {api_key}",
-    }
-    response = requests.get(url, headers=headers, timeout=30)
-    response.raise_for_status()
-    return response.json()
+def recover_signer(text, signature):
+    message = encode_defunct(text=text)
+    return Account.recover_message(message, signature=signature)
 
 
-def derive_address_from_attested_key(attested_key_hex: Optional[str]) -> Optional[str]:
-    if not attested_key_hex:
-        return None
-    attested_key_hex = attested_key_hex.lower()
-    if len(attested_key_hex) == 64:
-        return "0x" + attested_key_hex[-40:]
-    return None
+def fetch_attestation_for(signing_address):
+    nonce = secrets.token_hex(32)
+    url = f"{BASE_URL}/v1/attestation/report?model={MODEL}&nonce={nonce}"
+    report = requests.get(url, headers={"Authorization": f"Bearer {API_KEY}"}, timeout=30).json()
+    nodes = report.get("all_attestations") or [report]
+    node = next(item for item in nodes if item["signing_address"].lower() == signing_address.lower())
+    return node, nonce
 
 
-def pretty_status(title: str, ok: bool, detail: str = "") -> None:
-    prefix = SUCCESS_EMOJI if ok else FAILURE_EMOJI
-    message = f"{prefix} {title}"
-    if detail:
-        message += f": {detail}"
-    print(message)
+def check_attestation(signing_address, node, nonce):
+    report_data = bytes.fromhex(node["report_data"])
+    signing_key = bytes.fromhex(node["signing_key"])
+    embedded_key = report_data[:32]
+    embedded_nonce = report_data[32:]
+
+    print("Report data binds signing key:", embedded_key == signing_key.ljust(32, b"\x00"))
+    print("Report data embeds nonce:", embedded_nonce.hex() == nonce)
+
+    derived_address = "0x" + node["signing_key"][-40:]
+    print("Signing address derives from attested key:", derived_address.lower() == signing_address.lower())
+
+    payload = json.loads(node["nvidia_payload"])
+    print("GPU payload nonce matches:", payload["nonce"].lower() == nonce)
+    body = requests.post(GPU_VERIFIER, data=node["nvidia_payload"], timeout=30).json()
+    jwt_token = body[0][1]
+    verdict = json.loads(base64url_payload(jwt_token))["x-nvidia-overall-att-result"]
+    print("NVIDIA attestation verdict:", verdict)
+
+    intel = requests.post(INTEL_VERIFIER, json={"hex": node["intel_quote"]}, timeout=30).json()
+    print("Intel attestation accepted:", intel.get("verified"))
+    if intel.get("message"):
+        print("Intel verifier message:", intel["message"])
+
+    compose = node["info"]["tcb_info"].get("app_compose")
+    if compose:
+        print("\nDocker compose manifest attested by the enclave:")
+        print(compose)
+        print("Compose sha256:", sha256(compose.encode()).hexdigest())
 
 
-def calculate_request_hash(request_body: str) -> str:
-    return sha256(request_body.encode("utf-8")).hexdigest()
+def base64url_payload(jwt_token):
+    payload_b64 = jwt_token.split(".")[1]
+    padded = payload_b64 + "=" * ((4 - len(payload_b64) % 4) % 4)
+    return base64.urlsafe_b64decode(padded).decode()
 
 
-def calculate_response_hash(response_text: str) -> str:
-    return sha256(response_text.encode("utf-8")).hexdigest()
+def verify_chat(chat_id, request_body, response_text, label):
+    request_hash = sha256_text(request_body)
+    response_hash = sha256_text(response_text)
 
+    print(f"\n--- {label} ---")
+    signature_payload = fetch_signature(chat_id)
+    print(json.dumps(signature_payload, indent=2))
 
-def process_response_stream(response) -> dict:
-    chat_id = None
-    response_text = ""
+    hashed_text = signature_payload["text"]
+    request_hash_server, response_hash_server = hashed_text.split(":")
+    print("Request hash matches:", request_hash == request_hash_server)
+    print("Response hash matches:", response_hash == response_hash_server)
 
-    for line in response.iter_lines():
-        line_str = line.decode("utf-8")
-        response_text += line_str + "\n"
+    signature = signature_payload["signature"]
+    signing_address = signature_payload["signing_address"]
+    recovered = recover_signer(hashed_text, signature)
+    print("Signature valid:", recovered.lower() == signing_address.lower())
 
-        if line_str.startswith("data: {") and chat_id is None:
-            try:
-                data = json.loads(line_str[6:])
-                chat_id = data.get("id")
-            except Exception:
-                pass
-
-    return {"chat_id": chat_id, "response_text": response_text}
-
-
-def process_response_non_stream(response) -> dict:
-    response_json = response.json()
-    chat_id = response_json.get("id")
-    response_text = response.text
-    response_hash = calculate_response_hash(response_text)
-
-    return {
-        "chat_id": chat_id,
-        "response_text": response_text,
-        "response_hash": response_hash,
-        "response_json": response_json,
-    }
-
-
-def verify_signature(text: str, signature: str, signing_address: str) -> bool:
-    try:
-        message = encode_defunct(text=text)
-        recovered_address = Account.recover_message(message, signature=signature)
-        return recovered_address.lower() == signing_address.lower()
-    except Exception as exc:
-        print(f"Signature verification error: {exc}")
-        return False
-
-
-def verify_signature_for_chat(
-    chat_id: Optional[str],
-    expected_request_hash: Optional[str] = None,
-    expected_response_hash: Optional[str] = None,
-    example_name: str = "",
-) -> None:
-    if not chat_id:
-        return
-
-    print(f"\n--- {example_name} ---")
-    sig_response = requests.get(
-        f"{BASE_URL}/v1/signature/{chat_id}?model={MODEL}",
-        headers={"Authorization": f"Bearer {API_KEY}"},
-        timeout=30,
-    )
-
-    if sig_response.status_code != 200:
-        print(f"Failed to get signature: {sig_response.status_code}")
-        return
-
-    sig_data = sig_response.json()
-    print(f"Signature data: {json.dumps(sig_data, indent=2)}")
-
-    text = sig_data["text"]
-    request_hash_from_server, response_hash_from_server = text.split(":")
-
-    print("\nHash verification:")
-    if expected_request_hash:
-        pretty_status("Request hash matches", expected_request_hash == request_hash_from_server)
-    else:
-        print(f"Request hash from server: {request_hash_from_server}")
-
-    if expected_response_hash:
-        pretty_status("Response hash matches", expected_response_hash == response_hash_from_server)
-    else:
-        print(f"Response hash from server: {response_hash_from_server}")
-
-    signature = sig_data["signature"]
-    signing_address = sig_data["signing_address"]
-    is_valid = verify_signature(text, signature, signing_address)
-    pretty_status("Signature valid", is_valid)
-
-    if not is_valid:
-        return
-
-    nonce_hex = secrets.token_hex(32)
-    attestation = get_attestation_report(API_KEY, MODEL, nonce_hex)
-    node = attestation["all_attestations"][0] if attestation.get("all_attestations") else attestation
-
-    pretty_status(
-        "Attestation signing address matches",
-        node.get("signing_address") == signing_address,
-    )
-
-    report_data_hex = node.get("report_data")
-    if report_data_hex:
-        report_data_bytes = bytes.fromhex(report_data_hex)
-        key_part = report_data_bytes[:32].rstrip(b"\x00").hex()
-        bound_nonce = report_data_bytes[32:]
-        pretty_status("Nonce bound into report", bound_nonce == bytes.fromhex(nonce_hex))
-
-        attested_key_hex = node.get("attested_key")
-        if signing_address.startswith("0x"):
-            derived_address = derive_address_from_attested_key(attested_key_hex)
-            if derived_address:
-                pretty_status(
-                    "Attested key derives signing address",
-                    derived_address.lower() == signing_address.lower(),
-                    derived_address,
-                )
-            pretty_status(
-                "Report data encodes attested key",
-                key_part == (attested_key_hex or "").lower(),
-            )
-        else:
-            pretty_status(
-                "Ed25519 public key matches attestation",
-                (attested_key_hex or "").lower() == signing_address.lower() == key_part,
-            )
+    node, nonce = fetch_attestation_for(signing_address)
+    print("\nAttestation signer:", node["signing_address"])
+    print("Attestation nonce:", nonce)
+    check_attestation(signing_address, node, nonce)
 
     print("\nReview Sigstore provenance for the container image:")
-    print("https://search.sigstore.dev/?hash=sha256:77fbe5f142419d6f52b04c0e749aa3facf9359dcd843f68d073e24d0eba7c5dd")
+    print(SIGSTORE_PROVENANCE)
 
 
-def example_streaming_request() -> None:
-    request_body = {
+def streaming_example():
+    body = {
         "model": MODEL,
         "messages": [{"role": "user", "content": "Hello, how are you?"}],
         "stream": True,
         "max_tokens": 1,
     }
-    request_body_str = json.dumps(request_body)
-    calculated_hash = calculate_request_hash(request_body_str)
-
-    print("\n=== Example 1: Streaming request without hash (server calculates) ===")
-
+    body_json = json.dumps(body)
     response = requests.post(
         f"{BASE_URL}/v1/chat/completions",
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {API_KEY}",
-        },
-        data=request_body_str,
+        headers={"Content-Type": "application/json", "Authorization": f"Bearer {API_KEY}"},
+        data=body_json,
         stream=True,
         timeout=30,
     )
 
-    result = process_response_stream(response)
-    chat_id = result["chat_id"]
-    response_text = result["response_text"]
-    response_hash = calculate_response_hash(response_text)
+    chat_id = None
+    response_text = ""
+    for chunk in response.iter_lines():
+        line = chunk.decode()
+        response_text += line + "\n"
+        if line.startswith("data: {") and chat_id is None:
+            chat_id = json.loads(line[6:])['id']
 
-    print(f"Chat ID: {chat_id}")
-    print(f"Calculated response hash: {response_hash}")
-
-    verify_signature_for_chat(
-        chat_id,
-        calculated_hash,
-        response_hash,
-        "Streaming without X-Request-Hash",
-    )
+    verify_chat(chat_id, body_json, response_text, "Streaming example")
 
 
-def example_non_streaming_request() -> None:
-    request_body = {
+def non_streaming_example():
+    body = {
         "model": MODEL,
         "messages": [{"role": "user", "content": "Hello, how are you?"}],
         "stream": False,
         "max_tokens": 1,
     }
-    request_body_str = json.dumps(request_body)
-    calculated_hash = calculate_request_hash(request_body_str)
-
-    print("\n=== Example 2: Non-streaming request without hash ===")
-    print(f"Calculated request hash: {calculated_hash}")
-
+    body_json = json.dumps(body)
     response = requests.post(
         f"{BASE_URL}/v1/chat/completions",
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {API_KEY}",
-        },
-        data=request_body_str,
+        headers={"Content-Type": "application/json", "Authorization": f"Bearer {API_KEY}"},
+        data=body_json,
         timeout=30,
     )
 
-    result = process_response_non_stream(response)
-    chat_id = result["chat_id"]
-    response_hash = result["response_hash"]
-
-    print(f"Chat ID: {chat_id}")
-    print(f"Calculated response hash: {response_hash}")
-
-    verify_signature_for_chat(
-        chat_id,
-        calculated_hash,
-        response_hash,
-        "Non-streaming without X-Request-Hash",
-    )
+    payload = response.json()
+    chat_id = payload["id"]
+    verify_chat(chat_id, body_json, response.text, "Non-streaming example")
 
 
-def example_with_request_hash(include_stream: bool) -> None:
-    payload = {
-        "model": MODEL,
-        "messages": [{"role": "user", "content": "Hello, how are you?"}],
-        "stream": include_stream,
-        "max_tokens": 1,
-    }
-    body_str = json.dumps(payload)
-    request_hash = calculate_request_hash(body_str)
-
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {API_KEY}",
-        "X-Request-Hash": request_hash,
-    }
-
-    print(
-        "\n=== Example 3: {} request with X-Request-Hash ===".format(
-            "Streaming" if include_stream else "Non-streaming"
-        )
-    )
-
-    response = requests.post(
-        f"{BASE_URL}/v1/chat/completions",
-        headers=headers,
-        data=body_str,
-        stream=include_stream,
-        timeout=30,
-    )
-
-    if include_stream:
-        result = process_response_stream(response)
-        chat_id = result["chat_id"]
-        response_text = result["response_text"]
-        response_hash = calculate_response_hash(response_text)
-    else:
-        result = process_response_non_stream(response)
-        chat_id = result["chat_id"]
-        response_hash = result["response_hash"]
-
-    print(f"Chat ID: {chat_id}")
-    print(f"Calculated response hash: {response_hash}")
-
-    verify_signature_for_chat(
-        chat_id,
-        request_hash,
-        response_hash,
-        "Streaming with X-Request-Hash" if include_stream else "Non-streaming with X-Request-Hash",
-    )
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Phala Cloud Signature Verifier")
-    parser.add_argument(
-        "--skip-examples",
-        action="store_true",
-        help="Skip running example requests and only verify existing chats",
-    )
-    parser.add_argument("--chat-id", help="Existing chat ID to verify", default=None)
-    parser.add_argument(
-        "--request-hash", help="Expected request hash for the given chat", default=None
-    )
-    parser.add_argument(
-        "--response-hash", help="Expected response hash for the given chat", default=None
-    )
-
-    args = parser.parse_args()
-
-    if args.chat_id:
-        verify_signature_for_chat(
-            args.chat_id,
-            args.request_hash,
-            args.response_hash,
-            "Manual verification",
-        )
-        return
-
-    if args.skip_examples:
-        print("No chat ID provided. Nothing to verify.")
-        return
-
-    example_streaming_request()
-    example_non_streaming_request()
-    example_with_request_hash(include_stream=True)
-    example_with_request_hash(include_stream=False)
+def main():
+    streaming_example()
+    non_streaming_example()
 
 
 if __name__ == "__main__":

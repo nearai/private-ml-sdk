@@ -1,166 +1,103 @@
 #!/usr/bin/env python3
-"""Verify Phala Cloud attestation for CPU and GPU components."""
+"""Straightforward walkthrough for checking a Phala attestation."""
 
 import argparse
 import base64
 import json
 import secrets
 from hashlib import sha256
-from typing import Any, Dict, Tuple
 
 import requests
 
 API_BASE = "https://api.redpill.ai"
-DEFAULT_MODEL = "phala/deepseek-chat-v3-0324"
+GPU_VERIFIER = "https://nras.attestation.nvidia.com/v3/attest/gpu"
+INTEL_VERIFIER = "https://cloud-api.phala.network/api/v1/attestations/verify"
+SIGSTORE_PROVENANCE = (
+    "https://search.sigstore.dev/?hash=sha256:77fbe5f142419d6f52b04c0e749aa3facf9359dcd843f68d073e24d0eba7c5dd"
+)
 
 
-def get_attestation_report(api_key: str, model: str, nonce_hex: str) -> Dict[str, Any]:
-    url = f"{API_BASE}/v1/attestation/report?model={model}&nonce={nonce_hex}"
-    headers = {
-        "accept": "application/json",
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {api_key}",
-    }
-    response = requests.get(url, headers=headers, timeout=30)
-    response.raise_for_status()
-    return response.json()
+def fetch_report(api_key, model, nonce):
+    url = f"{API_BASE}/v1/attestation/report?model={model}&nonce={nonce}"
+    headers = {"Authorization": f"Bearer {api_key}"}
+    return requests.get(url, headers=headers, timeout=30).json()
 
 
-def verify_gpu_attestation(nvidia_payload: str) -> Dict[str, Any]:
-    url = "https://nras.attestation.nvidia.com/v3/attest/gpu"
-    headers = {"accept": "application/json", "content-type": "application/json"}
-    response = requests.post(url, headers=headers, data=nvidia_payload, timeout=30)
-    response.raise_for_status()
-    return response.json()
+def choose_node(report, index):
+    nodes = report.get("all_attestations") or [report]
+    return nodes[index]
 
 
-def verify_intel_tdx_attestation(intel_quote: str) -> str:
-    print(f"   Copy this encoded Intel Quote: {intel_quote}")
-    return "https://proof.t16z.com"
+def check_cpu(node, nonce):
+    report_data = bytes.fromhex(node["report_data"])
+    signing_key = bytes.fromhex(node["signing_key"])
+    embedded_key = report_data[:32]
+    embedded_nonce = report_data[32:]
+
+    print("Report data binds signing key:", embedded_key == signing_key.ljust(32, b"\x00"))
+    print("Report data embeds nonce:", embedded_nonce.hex() == nonce)
+
+    derived_address = "0x" + node["signing_key"][-40:]
+    print("Signing address derives from attested key:", derived_address.lower() == node["signing_address"].lower())
 
 
-def parse_jwt_token(jwt_token: str) -> Dict[str, Any]:
-    try:
-        header, payload, signature = jwt_token.split(".")
-    except ValueError:
-        return {"error": "Invalid JWT format"}
+def check_gpu(node, nonce):
+    payload = json.loads(node["nvidia_payload"])
+    print("GPU payload nonce matches:", payload["nonce"].lower() == nonce)
 
-    padding = len(payload) % 4
-    if padding:
-        payload += "=" * (4 - padding)
-    payload_json = base64.urlsafe_b64decode(payload)
-    return json.loads(payload_json)
+    body = requests.post(GPU_VERIFIER, data=node["nvidia_payload"], timeout=30).json()
+    jwt_token = body[0][1]
+    payload_bytes = base64.urlsafe_b64decode(jwt_token.split(".")[1] + "==")
+    verdict = json.loads(payload_bytes)["x-nvidia-overall-att-result"]
+    print("NVIDIA attestation verdict:", verdict)
 
 
-def parse_report_data(report_data_hex: str) -> Tuple[bytes, bytes]:
-    data = bytes.fromhex(report_data_hex)
-    key = data[:32].rstrip(b"\x00")
-    nonce = data[32:]
-    return key, nonce
+def check_intel(node):
+    intel_result = requests.post(INTEL_VERIFIER, json={"hex": node["intel_quote"]}, timeout=30).json()
+    print("Intel attestation accepted:", intel_result.get("verified"))
+    if intel_result.get("message"):
+        print("Intel verifier message:", intel_result["message"])
 
 
-def pretty_status(title: str, ok: bool, detail: str = "") -> None:
-    prefix = "✅" if ok else "❌"
-    message = f"{prefix} {title}"
-    if detail:
-        message += f": {detail}"
-    print(message)
+def show_compose(node):
+    compose = node["info"]["tcb_info"].get("app_compose")
+    if not compose:
+        return
+    print("\nDocker compose manifest attested by the enclave:")
+    print(compose)
+    print("Compose sha256:", sha256(compose.encode()).hexdigest())
+    mr_config = node["info"].get("mr_config")
+    if mr_config:
+        print("mr_config:", mr_config)
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Verify Phala Cloud TEE Attestation")
-    parser.add_argument("--api-key", required=True, help="Phala Cloud API key")
-    parser.add_argument("--model", default=DEFAULT_MODEL, help="Model to verify")
-    parser.add_argument(
-        "--node-index",
-        type=int,
-        default=0,
-        help="Index of node in all_attestations list to verify",
-    )
-    parser.add_argument(
-        "--nonce",
-        help="Hex-encoded 32-byte nonce (defaults to random)",
-    )
-
+    parser.add_argument("--api-key", required=True)
+    parser.add_argument("--model", default="phala/deepseek-chat-v3-0324")
+    parser.add_argument("--node-index", type=int, default=0)
     args = parser.parse_args()
-    nonce_hex = args.nonce or secrets.token_hex(32)
 
-    try:
-        print("🔍 Fetching attestation report...")
-        report = get_attestation_report(args.api_key, args.model, nonce_hex)
+    nonce = secrets.token_hex(32)
+    report = fetch_report(args.api_key, args.model, nonce)
+    node = choose_node(report, args.node_index)
 
-        if "all_attestations" in report and report["all_attestations"]:
-            node = report["all_attestations"][args.node_index]
-        else:
-            node = report
+    print("\nSigning address:", node["signing_address"])
+    print("Nonce:", nonce)
 
-        signing_address = node["signing_address"]
-        nvidia_payload = node["nvidia_payload"]
-        intel_quote = node["intel_quote"]
+    print("\n🔐 CPU report data")
+    check_cpu(node, nonce)
 
-        print(f"✅ Signing address: {signing_address}")
-        print(f"✅ Nonce: {nonce_hex}")
+    print("\n🔐 GPU attestation")
+    check_gpu(node, nonce)
 
-        print("\n🔐 Verifying GPU attestation with NVIDIA...")
-        gpu_result = verify_gpu_attestation(nvidia_payload)
-        if isinstance(gpu_result, list) and gpu_result:
-            jwt_sections = gpu_result[0]
-            if isinstance(jwt_sections, list) and len(jwt_sections) >= 2 and jwt_sections[0] == "JWT":
-                jwt_payload = parse_jwt_token(jwt_sections[1])
-                pretty_status(
-                    "NVIDIA attestation verdict",
-                    jwt_payload.get("x-nvidia-overall-att-result") == "SUCCESS",
-                    jwt_payload.get("x-nvidia-overall-att-result", "unknown"),
-                )
-        else:
-            pretty_status("NVIDIA attestation response received", True)
+    print("\n🔐 Intel TDX attestation")
+    check_intel(node)
 
-        gpu_payload = json.loads(nvidia_payload)
-        pretty_status("GPU nonce matches", gpu_payload.get("nonce") == nonce_hex)
+    show_compose(node)
 
-        print("\n🔐 Intel TDX attestation verification:")
-        intel_url = verify_intel_tdx_attestation(intel_quote)
-        print(f"✅ Intel TDX verification URL: {intel_url}")
-        print("   Verify the quote against published MR values for full assurance.")
-
-        report_data = node.get("report_data")
-        attested_key_hex = node.get("attested_key")
-        if report_data and attested_key_hex:
-            attested_key_bytes, nonce_bytes = parse_report_data(report_data)
-            nonce_ok = nonce_bytes == bytes.fromhex(nonce_hex)
-            pretty_status("Nonce bound into TDX report", nonce_ok)
-
-            key_ok = attested_key_bytes == bytes.fromhex(attested_key_hex)
-            pretty_status("Report data binds signing key", key_ok)
-
-            if signing_address.startswith("0x"):
-                derived = "0x" + attested_key_hex[-40:]
-                pretty_status(
-                    "Signing address derived from attested key",
-                    derived.lower() == signing_address.lower(),
-                    derived,
-                )
-
-        info = node.get("info", {})
-        compose = info.get("tcb_info", {}).get("app_compose") if isinstance(info.get("tcb_info"), dict) else None
-        if compose:
-            calculated = sha256(compose.encode("utf-8")).hexdigest()
-            attested = info.get("compose_hash")
-            pretty_status("Compose hash matches", calculated == attested, f"computed={calculated}")
-            print("   Review the compose manifest to ensure it matches the published configuration.")
-            mr_config = info.get("mr_config")
-            if mr_config:
-                print(f"   mr_config: {mr_config}")
-
-        print("\n🎉 Attestation artifacts verified. Review Sigstore provenance for the container image:")
-        print("   https://search.sigstore.dev/?hash=sha256:77fbe5f142419d6f52b04c0e749aa3facf9359dcd843f68d073e24d0eba7c5dd")
-
-    except requests.exceptions.HTTPError as exc:
-        print(f"❌ HTTP Error: {exc}")
-        if exc.response is not None and exc.response.status_code == 401:
-            print("   Check API key permissions.")
-    except Exception as exc:  # pragma: no cover - defensive output
-        print(f"❌ Verification failed: {exc}")
+    print("\nReview Sigstore provenance for the container image:")
+    print(SIGSTORE_PROVENANCE)
 
 
 if __name__ == "__main__":

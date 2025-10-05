@@ -7,10 +7,8 @@ from app.logger import log
 from .local_cache import LocalCache
 from .redis import RedisCache
 
-CHAT_CACHE_EXPIRATION = int(
-    os.getenv("CHAT_CACHE_EXPIRATION", "1200")
-)  # 20 minutes by default
-MODEL_NAME = os.getenv("MODEL_NAME", None)
+CHAT_CACHE_EXPIRATION = int(os.getenv("CHAT_CACHE_EXPIRATION", "1200"))
+MODEL_NAME = os.getenv("MODEL_NAME")
 if not MODEL_NAME:
     raise ValueError("MODEL_NAME is not set")
 
@@ -19,83 +17,99 @@ ATTESTATION_PREFIX = "attestation"
 
 
 class ChatCache:
-    """Class for chat cache implementations"""
+    """Redis-backed cache with local fallback for single-instance deployments."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.redis_cache = RedisCache(expiration=CHAT_CACHE_EXPIRATION)
         self.local_cache = LocalCache(expiration=CHAT_CACHE_EXPIRATION)
+        self._redis_enabled = True
+        self._local_attestations: dict[str, dict] = {}
 
-    def _get_key(self, prefix: str, key: str) -> str:
-        """Generate cache key with prefix"""
+    def _make_key(self, prefix: str, key: str) -> str:
         return f"{MODEL_NAME}:{prefix}:{key}"
 
-    def set_chat(self, chat_id: str, chat: str) -> bool:
-        """Set chat history by chat_id
-        If Redis is not available, use local cache
-        """
-        try:
-            key = self._get_key(CHAT_PREFIX, chat_id)
-            if not self.redis_cache.set_string(key, chat):
-                log.warning(
-                    f"Failed to set chat {chat_id} in Redis, falling back to local cache"
-                )
-                self.local_cache.set(key, chat)
-        except Exception as e:
-            log.error(f"Error setting chat in cache: {e}")
-            return False
+    def _set_string(self, key: str, value: str) -> bool:
+        if self._redis_enabled:
+            try:
+                if self.redis_cache.set_string(key, value):
+                    return True
+                log.warning("Redis unavailable, caching %s locally", key)
+            except Exception as exc:  # pragma: no cover
+                log.error("Redis set error for %s: %s", key, exc)
+                self._redis_enabled = False
+
+        self.local_cache.set(key, value)
         return True
+
+    def _get_string(self, key: str) -> Optional[str]:
+        if self._redis_enabled:
+            try:
+                value = self.redis_cache.get_string(key)
+            except Exception as exc:  # pragma: no cover
+                log.error("Redis get error for %s: %s", key, exc)
+                self._redis_enabled = False
+            else:
+                if value:
+                    return value
+        return self.local_cache.get(key)
+
+    def set_chat(self, chat_id: str, chat: str) -> bool:
+        key = self._make_key(CHAT_PREFIX, chat_id)
+        return self._set_string(key, chat)
 
     def get_chat(self, chat_id: str) -> Optional[str]:
-        """Get chat history by chat_id
-        If Redis is not available, use local cache
-        """
-        try:
-            key = self._get_key(CHAT_PREFIX, chat_id)
-            value = self.redis_cache.get_string(key)
-            if not value:
-                value = self.local_cache.get(key)
-            return value
-        except Exception as e:
-            log.error(f"Error getting chat from cache: {e}")
-            return None
+        key = self._make_key(CHAT_PREFIX, chat_id)
+        return self._get_string(key)
 
-    def set_attestation(self, address: str, attestation: object) -> bool:
-        """Persist attestation metadata keyed by signing address."""
+    def set_attestation(self, address: str, payload: object) -> bool:
+        key = self._make_key(ATTESTATION_PREFIX, address)
         try:
-            value = json.dumps(attestation)
-            key = self._get_key(ATTESTATION_PREFIX, address)
-            if self.redis_cache.set_string(key, value):
-                return True
-            log.warning(f"Failed to set attestation for {address} in Redis, using local cache")
-            self.local_cache.set(key, value)
-        except Exception as e:
-            log.error(f"Error setting attestation in cache: {e}")
+            encoded = json.dumps(payload)
+        except Exception as exc:  # pragma: no cover
+            log.error("Attestation serialisation error for %s: %s", address, exc)
             return False
-        return True
+
+        if isinstance(payload, dict):
+            self._local_attestations[address] = payload
+        return self._set_string(key, encoded)
 
     def get_attestation(self, address: str) -> Optional[dict]:
-        key = self._get_key(ATTESTATION_PREFIX, address)
-        value = self.redis_cache.get_string(key)
-        if not value:
-            value = self.local_cache.get(key)
-        if not value:
-            return None
+        key = self._make_key(ATTESTATION_PREFIX, address)
+        raw = self._get_string(key)
+        if not raw:
+            return self._local_attestations.get(address)
         try:
-            return json.loads(value)
+            data = json.loads(raw)
         except json.JSONDecodeError:
-            log.error("Invalid attestation JSON in cache")
-            return None
+            log.error("Invalid attestation JSON for %s", address)
+            return self._local_attestations.get(address)
+        if isinstance(data, dict):
+            self._local_attestations[address] = data
+        return data
 
     def get_attestations(self) -> list:
-        """Get all attestations"""
-        try:
-            values = self.redis_cache.get_all_values(
-                f"{MODEL_NAME}:{ATTESTATION_PREFIX}"
-            )
-            return [json.loads(value) for value in values]
-        except Exception as e:
-            log.error(f"Error getting attestation from cache: {e}")
-            return []
+        decoded: list[dict] = []
+        if self._redis_enabled:
+            try:
+                values = self.redis_cache.get_all_values(f"{MODEL_NAME}:{ATTESTATION_PREFIX}")
+                for value in values or []:
+                    try:
+                        item = json.loads(value)
+                    except json.JSONDecodeError:
+                        log.error("Invalid attestation JSON retrieved from cache")
+                        continue
+                    if isinstance(item, dict):
+                        decoded.append(item)
+                        address = item.get("signing_address")
+                        if isinstance(address, str):
+                            self._local_attestations[address] = item
+            except Exception as exc:  # pragma: no cover
+                log.error("Error collecting attestations: %s", exc)
+                self._redis_enabled = False
+
+        if not decoded:
+            decoded = list(self._local_attestations.values())
+        return decoded
 
 
 cache = ChatCache()
