@@ -1,5 +1,8 @@
 import json
 import os
+import hashlib
+from dataclasses import dataclass
+from typing import Optional, Callable
 
 import eth_utils
 import pynvml
@@ -14,185 +17,166 @@ from verifier import cc_admin
 ED25519 = "ed25519"
 ECDSA = "ecdsa"
 GPU_ARCH = "HOPPER"
-SIGNING_METHOD = os.getenv("SIGNING_METHOD", ED25519)
 
 
-class Quote:
+@dataclass
+class SigningContext:
+    method: str
+    signing_address: str
+    attested_key_bytes: bytes
+    _ed_private: Optional[Ed25519PrivateKey] = None
+    _raw_account: Optional[web3.Account] = None
 
-    def __init__(self, signing_method: str):
-        self.signing_method = signing_method
-        self.signing_address = None
-        self.intel_quote = None
-        self.nvidia_payload = None
-        self.event_log = None
-        self.info = None
+    def sign(self, content: str) -> str:
+        if self.method == ED25519 and self._ed_private:
+            signature = self._ed_private.sign(content.encode("utf-8"))
+            return signature.hex()
+        if self.method == ECDSA and self._raw_account:
+            signed_message = self._raw_account.sign_message(encode_defunct(text=content))
+            return f"0x{signed_message.signature.hex()}"
+        raise ValueError("Signing context is not properly initialised")
 
-        self.raw_acct = None
-        self.ed25519_key = None
 
-    def init(self, force=False) -> dict:
-        """
-        Initialize the quote object.
-        If the signing address is already set, it will not be re-initialized.
-        If force is True, the signing address will be forced to be re-initialized.
-        """
-        if self.signing_address is not None and not force:
-            return
+def _build_report_data(identifier: bytes, nonce: bytes) -> bytes:
+    if not identifier:
+        raise ValueError("Identifier must be provided")
+    if len(identifier) > 32:
+        raise ValueError("Identifier exceeds 32 bytes")
+    if len(nonce) != 32:
+        raise ValueError("Nonce must be 32 bytes")
+    return identifier.ljust(32, b"\x00") + nonce
 
-        if self.signing_method == ED25519:
-            self.init_ed25519()
-        elif self.signing_method == ECDSA:
-            self.init_ecdsa()
-        else:
-            raise ValueError("Unsupported signing method")
 
-        self.intel_quote, self.event_log = self.get_quote()
-        self.nvidia_payload = self.get_gpu_payload(self.public_key)
-        self.info = self.get_info()
-
-        return dict(
-            signing_address=self.signing_address,
-            intel_quote=self.intel_quote,
-            nvidia_payload=self.nvidia_payload,
-            event_log=self.event_log,
-            info=self.info,
-        )
-
-    def get_gpu_payload(self, public_key: str) -> str:
-        gpu_evidence_list = []
+def _parse_nonce(nonce: Optional[bytes | str]) -> bytes:
+    if nonce is None:
+        return os.urandom(32)
+    if isinstance(nonce, bytes):
+        nonce_bytes = nonce
+    else:
         try:
-            pynvml.nvmlInit()
-            device_count = pynvml.nvmlDeviceGetCount()
-            if device_count == 1:
-                gpu_evidence_list = cc_admin.collect_gpu_evidence_remote(public_key)
-            else:
-                switch_attestation_mode = "REMOTE"
-                switch_attester = attestation.Attestation()
-                switch_attester.set_name("HOPPER")
-                switch_attester.set_nonce(public_key)
-                switch_attester.set_claims_version("2.0")
-                switch_attester.set_ocsp_nonce_disabled(True)
-                switch_attester.add_verifier(
-                    dev=attestation.Devices.GPU,
-                    env=attestation.Environment[switch_attestation_mode],
-                    url=None,
-                    evidence="",
-                )
-                gpu_evidence_list = switch_attester.get_evidence(
-                    options={"ppcie_mode": False}
-                )
-        except pynvml.NVMLError as error:
-            raise Exception(f"CUDA Error: {error}")
-        finally:
-            pynvml.nvmlShutdown()
-
-        if len(gpu_evidence_list) == 0:
-            raise Exception("No GPU evidence found")
-
-        return self.build_payload(public_key, gpu_evidence_list)
-
-    def init_ed25519(self):
-        # Generate Ed25519 key pair
-        self.ed25519_key = Ed25519PrivateKey.generate()
-        self.public_key_bytes = self.ed25519_key.public_key().public_bytes(
-            encoding=serialization.Encoding.Raw,
-            format=serialization.PublicFormat.Raw,
-        )
-        self.public_key = self.public_key_bytes.hex()
-        self.signing_address = self.public_key
-
-    def init_ecdsa(self):
-        # Generate web3 (ECDSA) account
-        w3 = web3.Web3()
-        self.raw_acct = w3.eth.account.create()
-        self.signing_address = self.raw_acct.address
-        self.public_key = eth_utils.keccak(
-            self.raw_acct._key_obj.public_key.to_bytes()
-        ).hex()
-
-    def get_quote(self):
-        """Fetch a TDX quote using the wallet address as report data."""
-        if self.signing_address is None:
-            raise ValueError("Signing address must be initialized")
-
-        client = DstackClient()
-        report_data = self._report_data(self.signing_address)
-        result = client.get_quote(report_data)
-        event_log = json.loads(result.event_log)
-        return result.quote, event_log
-
-    @staticmethod
-    def _report_data(wallet_address: str) -> bytes:
-        """Return the wallet address right-padded with zeros to 64 bytes."""
-        if wallet_address is None:
-            raise ValueError("Wallet address is required")
-
-        normalized = wallet_address[2:] if wallet_address.startswith("0x") else wallet_address
-
-        if len(normalized) not in (40, 64):
-            raise ValueError("Wallet address must be 20 or 32 bytes")
-
-        try:
-            address_bytes = bytes.fromhex(normalized)
+            nonce_bytes = bytes.fromhex(nonce)
         except ValueError as exc:
-            raise ValueError("Wallet address must be a hex string") from exc
-
-        return address_bytes.ljust(64, b"\x00")
-
-
-    def get_info(self):
-        client = DstackClient()
-        return client.info().model_dump()
-
-    def sign(self, content: str):
-        if self.signing_method == ED25519:
-            return self._sign_ed25519(content)
-        elif self.signing_method == ECDSA:
-            return self._sign_ecdsa(content)
-        else:
-            raise ValueError("Unsupported signing method")
-
-    def _sign_ed25519(self, content: str):
-        # Sign content using ed25519
-        message_bytes = content.encode("utf-8")
-        signature = self.ed25519_key.sign(message_bytes)
-        return signature.hex()
-
-    def _sign_ecdsa(self, content: str):
-        # Sign content using web3 (ECDSA)
-        signed_message = self.raw_acct.sign_message(encode_defunct(text=content))
-        return f"0x{signed_message.signature.hex()}"
-
-    def build_payload(self, nonce, evidences):
-        """
-        A function that builds a payload with the given nonce and list of evidences.
-        """
-        data = {"nonce": nonce, "evidence_list": evidences, "arch": GPU_ARCH}
-        return json.dumps(data)
+            raise ValueError("Nonce must be hex-encoded") from exc
+    if len(nonce_bytes) != 32:
+        raise ValueError("Nonce must be 32 bytes")
+    return nonce_bytes
 
 
-ecdsa_quote = Quote(signing_method=ECDSA)
-ecdsa_quote.init()
-
-ed25519_quote = Quote(signing_method=ED25519)
-ed25519_quote.init()
-
-
-if __name__ == "__main__":
-    print("ECDSA quote:")
-    print(
-        dict(
-            signing_address=ecdsa_quote.signing_address,
-            intel_quote=ecdsa_quote.intel_quote,
-            nvidia_payload=ecdsa_quote.nvidia_payload,
+def _collect_gpu_evidence(nonce_hex: str) -> list:
+    try:
+        pynvml.nvmlInit()
+        device_count = pynvml.nvmlDeviceGetCount()
+        if device_count == 1:
+            return cc_admin.collect_gpu_evidence_remote(nonce_hex)
+        attester = attestation.Attestation()
+        attester.set_name("HOPPER")
+        attester.set_nonce(nonce_hex)
+        attester.set_claims_version("2.0")
+        attester.set_ocsp_nonce_disabled(True)
+        attester.add_verifier(
+            dev=attestation.Devices.GPU,
+            env=attestation.Environment["REMOTE"],
+            url=None,
+            evidence="",
         )
+        return attester.get_evidence(options={"ppcie_mode": False})
+    except pynvml.NVMLError as error:
+        raise Exception(f"CUDA Error: {error}")
+    finally:
+        pynvml.nvmlShutdown()
+
+
+def _build_nvidia_payload(nonce_hex: str, evidences: list) -> str:
+    data = {"nonce": nonce_hex, "evidence_list": evidences, "arch": GPU_ARCH}
+    return json.dumps(data)
+
+
+def _augment_info(info: dict) -> dict:
+    tcb_info = info.get("tcb_info") if isinstance(info.get("tcb_info"), dict) else None
+    compose = tcb_info.get("app_compose") if tcb_info else None
+    if compose:
+        calc_hash = hashlib.sha256(compose.encode("utf-8")).hexdigest()
+        info["calculated_compose_hash"] = calc_hash
+        info["compose_hash_match"] = calc_hash == info.get("compose_hash")
+    if tcb_info and "mr_config" in tcb_info:
+        info["mr_config"] = tcb_info["mr_config"]
+    return info
+
+
+def _create_ed25519_context() -> SigningContext:
+    private_key = Ed25519PrivateKey.generate()
+    public_key_bytes = private_key.public_key().public_bytes(
+        encoding=serialization.Encoding.Raw,
+        format=serialization.PublicFormat.Raw,
+    )
+    signing_address = public_key_bytes.hex()
+    return SigningContext(
+        method=ED25519,
+        signing_address=signing_address,
+        attested_key_bytes=public_key_bytes,
+        _ed_private=private_key,
     )
 
-    print("ED25519 quote:")
-    print(
-        dict(
-            signing_address=ed25519_quote.signing_address,
-            intel_quote=ed25519_quote.intel_quote,
-            nvidia_payload=ed25519_quote.nvidia_payload,
-        )
+
+def _create_ecdsa_context() -> SigningContext:
+    w3 = web3.Web3()
+    account = w3.eth.account.create()
+    signing_address = account.address
+    pub_key_bytes = account._key_obj.public_key.to_bytes()
+    attested_key_bytes = eth_utils.keccak(pub_key_bytes)
+    return SigningContext(
+        method=ECDSA,
+        signing_address=signing_address,
+        attested_key_bytes=attested_key_bytes,
+        _raw_account=account,
     )
+
+
+ecdsa_context = _create_ecdsa_context()
+ed25519_context = _create_ed25519_context()
+
+
+def sign_message(context: SigningContext, content: str) -> str:
+    return context.sign(content)
+
+
+def generate_attestation(
+    context: SigningContext, nonce: Optional[bytes | str] = None
+) -> dict:
+    nonce_bytes = _parse_nonce(nonce)
+    nonce_hex = nonce_bytes.hex()
+    report_data = _build_report_data(context.attested_key_bytes, nonce_bytes)
+
+    client = DstackClient()
+    quote_result = client.get_quote(report_data)
+    event_log = json.loads(quote_result.event_log)
+
+    gpu_evidence = _collect_gpu_evidence(nonce_hex)
+    if not gpu_evidence:
+        raise Exception("No GPU evidence found")
+    nvidia_payload = _build_nvidia_payload(nonce_hex, gpu_evidence)
+
+    info = client.info().model_dump()
+    info = _augment_info(info)
+
+    return dict(
+        signing_address=context.signing_address,
+        signing_key=context.attested_key_bytes.hex(),
+        nonce=nonce_hex,
+        report_data=report_data.hex(),
+        intel_quote=quote_result.quote,
+        nvidia_payload=nvidia_payload,
+        event_log=event_log,
+        info=info,
+    )
+
+
+__all__ = [
+    "SigningContext",
+    "sign_message",
+    "generate_attestation",
+    "ecdsa_context",
+    "ed25519_context",
+    "ED25519",
+    "ECDSA",
+]

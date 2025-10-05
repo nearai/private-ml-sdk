@@ -59,18 +59,32 @@ class ChatCache:
             log.error(f"Error getting chat from cache: {e}")
             return None
 
-    def set_attestation(self, ecdsa_address: str, attestation: object) -> bool:
-        """Set attestation by ecdsa_address"""
+    def set_attestation(self, address: str, attestation: object) -> bool:
+        """Persist attestation metadata keyed by signing address."""
         try:
             value = json.dumps(attestation)
-            key = self._get_key(ATTESTATION_PREFIX, ecdsa_address)
-            if not self.redis_cache.set_string(key, value):
-                log.warning(f"Failed to set attestation for {ecdsa_address} in Redis")
-                self.local_cache.set(key, value)
+            key = self._get_key(ATTESTATION_PREFIX, address)
+            if self.redis_cache.set_string(key, value):
+                return True
+            log.warning(f"Failed to set attestation for {address} in Redis, using local cache")
+            self.local_cache.set(key, value)
         except Exception as e:
             log.error(f"Error setting attestation in cache: {e}")
             return False
         return True
+
+    def get_attestation(self, address: str) -> Optional[dict]:
+        key = self._get_key(ATTESTATION_PREFIX, address)
+        value = self.redis_cache.get_string(key)
+        if not value:
+            value = self.local_cache.get(key)
+        if not value:
+            return None
+        try:
+            return json.loads(value)
+        except json.JSONDecodeError:
+            log.error("Invalid attestation JSON in cache")
+            return None
 
     def get_attestations(self) -> list:
         """Get all attestations"""

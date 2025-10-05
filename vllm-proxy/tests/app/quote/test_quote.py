@@ -1,181 +1,111 @@
-import unittest
-import base64
 import json
-from unittest.mock import MagicMock, patch
-
-from tests.app.sample_dstack_data import SAMPLE_DSTACK_INFO, SAMPLE_DSTACK_QUOTE
-
-patch.TEST_PREFIX = ("test", "setUp")
-
-ED25519 = "ed25519"
-ECDSA = "ecdsa"
-
-# Init mocked values
-# 1. Verifier
-mock_verifier = MagicMock()
-mock_verifier.cc_admin = MagicMock()
-mock_verifier.cc_admin.collect_gpu_evidence.return_value = [
-    {
-        "attestationReportHexStr": "mock_attestation_report",
-        "certChainBase64Encoded": "mock_cert_chain",
-    }
-]
-# 2. Dstack SDK
-mock_dstack_sdk = MagicMock()
-mock_client = mock_dstack_sdk.DstackClient.return_value
-
-mock_quote_response = MagicMock()
-mock_quote_response.quote = SAMPLE_DSTACK_QUOTE["quote"]
-mock_quote_response.event_log = SAMPLE_DSTACK_QUOTE["event_log"]
-mock_quote_response.model_dump.return_value = SAMPLE_DSTACK_QUOTE
-mock_client.get_quote.return_value = mock_quote_response
-
-mock_info_response = MagicMock()
-mock_info_response.model_dump.return_value = SAMPLE_DSTACK_INFO
-mock_client.info.return_value = mock_info_response
-
-# 3. pynvml
-mock_pynvml = MagicMock()
-mock_pynvml.nvmlInit.return_value = None
-mock_pynvml.nvmlDeviceGetCount.return_value = 1
-mock_pynvml.nvmlShutdown.return_value = None
-
-# 4. nv_attestation_sdk
-mock_attestation_sdk = MagicMock()
-mock_attestation = mock_attestation_sdk.attestation.Attestation.return_value
-mock_attestation.get_evidence.return_value = [{"mock": "evidence"}]
+import sys
+import types
+import unittest
+from importlib.machinery import SourceFileLoader
+from importlib.util import module_from_spec, spec_from_loader
+from pathlib import Path
 
 
-@patch.dict(
-    "sys.modules",
-    {
-        "verifier": mock_verifier,
-        "dstack_sdk": mock_dstack_sdk,
-        "pynvml": mock_pynvml,
-        "nv_attestation_sdk": mock_attestation_sdk,
-    },
-)
 class TestQuote(unittest.TestCase):
-
     def setUp(self):
-        mock_client.get_quote.reset_mock()
-        mock_attestation.get_evidence.reset_mock()
-
-    def test_init_ed25519(self):
-        # Test initialization with ed25519 signing
-        from app.quote.quote import Quote
-
-        quote = Quote(signing_method=ED25519)
-        result = quote.init()
-
-        self.assertIsNotNone(result["signing_address"])
-        self.assertIsNotNone(result["intel_quote"])
-        self.assertIsNotNone(result["nvidia_payload"])
-        self.assertEqual(quote.signing_method, ED25519)
-
-    def test_init_ecdsa(self):
-        # Test initialization with web3 (ECDSA) signing
-        from app.quote.quote import Quote
-
-        quote = Quote(signing_method=ECDSA)
-        result = quote.init(force=True)
-
-        self.assertIsNotNone(result["signing_address"])
-        self.assertIsNotNone(result["intel_quote"])
-        self.assertIsNotNone(result["nvidia_payload"])
-        self.assertEqual(quote.signing_method, ECDSA)
-
-    def test_sign_ed25519(self):
-        # Test signing using ed25519
-        from app.quote.quote import Quote
-
-        quote = Quote(signing_method=ED25519)
-        quote.init()
-        content = "Test message"
-        signature = quote.sign(content)
-
-        self.assertIsInstance(signature, str)
-        self.assertGreater(len(signature), 0)
-
-    def test_sign_ecdsa(self):
-        # Test signing using web3 (ECDSA)
-        from app.quote.quote import Quote
-
-        quote = Quote(signing_method=ECDSA)
-        quote.init()
-        content = "Test message"
-        signature = quote.sign(content)
-
-        self.assertIsInstance(signature, str)
-        self.assertGreater(len(signature), 0)
-
-    def test_build_payload(self):
-        # Test payload building
-        from app.quote.quote import Quote
-
-        quote = Quote(signing_method=ED25519)
-        quote.init()
-        nonce = "mock_nonce"
-        evidence = "mock_evidence"
-        cert_chain = "mock_cert_chain"
-
-        payload = quote.build_payload(nonce, evidence, cert_chain)
-        self.assertIsInstance(payload, str)
-
-        # Verify payload structure
-        payload_data = json.loads(payload)
-        self.assertEqual(payload_data["nonce"], nonce)
-        self.assertEqual(payload_data["arch"], "HOPPER")
-        self.assertEqual(
-            payload_data["evidence_list"][0]["evidence"],
-            base64.b64encode(evidence.encode("ascii")).decode("utf-8"),
+        self.mock_cc_admin = types.SimpleNamespace(
+            collect_gpu_evidence_remote=lambda nonce: [{"mock": "gpu"}],
         )
-        self.assertEqual(payload_data["evidence_list"][0]["certificate"], cert_chain)
 
-    def test_init_unsupported_signing_method(self):
-        # Test unsupported signing method
-        from app.quote.quote import Quote
+        attestation_instance = types.SimpleNamespace(
+            set_name=lambda *_: None,
+            set_nonce=lambda *_: None,
+            set_claims_version=lambda *_: None,
+            set_ocsp_nonce_disabled=lambda *_: None,
+            add_verifier=lambda **kwargs: None,
+            get_evidence=lambda **kwargs: [{"mock": "gpu"}],
+        )
+        attestation_mod = types.SimpleNamespace(
+            Attestation=lambda: attestation_instance,
+            Devices=types.SimpleNamespace(GPU="GPU"),
+            Environment={"REMOTE": "REMOTE"},
+        )
 
-        with self.assertRaises(ValueError):
-            quote = Quote("unsupported_method")
-            quote.init()
+        pynvml_mod = types.SimpleNamespace(
+            nvmlInit=lambda: None,
+            nvmlShutdown=lambda: None,
+            nvmlDeviceGetCount=lambda: 1,
+        )
 
-    def test_sign_unsupported_signing_method(self):
-        # Test unsupported signing method for signing
-        from app.quote.quote import Quote
+        client = types.SimpleNamespace()
+        client.get_quote = lambda report_data: types.SimpleNamespace(
+            quote="mock_quote",
+            event_log=json.dumps({"mock": True}),
+        )
+        client.info = lambda: types.SimpleNamespace(
+            model_dump=lambda: {
+                "compose_hash": "db669af634b75c7f298400f3b6c2aa8ba54998bac83e23d10ab4eaadc4b50ccf",
+                "tcb_info": {"app_compose": "compose", "mr_config": "01db669af634b75c7f298400f3b6c2aa8ba54998bac83e23d10ab4eaadc4b50ccf"},
+            }
+        )
+        dstack_mod = types.SimpleNamespace(DstackClient=lambda: client)
 
-        quote = Quote("unsupported_method")
-        with self.assertRaises(ValueError):
-            quote.sign("test_message")
+        self.original_modules = {}
+        for name, module in {
+            "verifier": types.SimpleNamespace(cc_admin=self.mock_cc_admin),
+            "nv_attestation_sdk": types.SimpleNamespace(attestation=attestation_mod),
+            "pynvml": pynvml_mod,
+            "dstack_sdk": dstack_mod,
+        }.items():
+            if name in sys.modules:
+                self.original_modules[name] = sys.modules[name]
+            sys.modules[name] = module
 
-    def test_report_data_accepts_20_byte_wallet(self):
-        from app.quote.quote import Quote
+        root = Path(__file__).resolve().parents[3] / "src"
+        if str(root) not in sys.path:
+            sys.path.insert(0, str(root))
 
-        address = "0x" + "ab" * 20
-        data = Quote._report_data(address)
-        expected = bytes.fromhex(address[2:]).ljust(64, b"\x00")
-        self.assertEqual(data, expected)
+        if "app" not in sys.modules:
+            sys.modules["app"] = types.ModuleType("app")
+            sys.modules["app"].__path__ = [str(root / "app")]
 
-    def test_report_data_accepts_32_byte_wallet(self):
-        from app.quote.quote import Quote
+        if "app.quote" not in sys.modules:
+            quote_pkg = types.ModuleType("app.quote")
+            quote_pkg.__path__ = [str(root / "app" / "quote")]
+            sys.modules["app.quote"] = quote_pkg
 
-        address = "cd" * 32
-        data = Quote._report_data(address)
-        expected = bytes.fromhex(address).ljust(64, b"\x00")
-        self.assertEqual(data, expected)
+        module_path = root / "app" / "quote" / "quote.py"
+        loader = SourceFileLoader("app.quote.quote", str(module_path))
+        spec = spec_from_loader(loader.name, loader)
+        module = module_from_spec(spec)
+        loader.exec_module(module)
+        sys.modules["app.quote.quote"] = module
 
-    def test_report_data_rejects_invalid_length(self):
-        from app.quote.quote import Quote
+        self.quote = module
 
-        with self.assertRaises(ValueError):
-            Quote._report_data("0x" + "12" * 21)
+    def tearDown(self):
+        sys.modules.update(self.original_modules)
+        for key in ["verifier", "nv_attestation_sdk", "pynvml", "dstack_sdk", "app.quote.quote", "app.quote"]:
+            sys.modules.pop(key, None)
 
-    def test_report_data_rejects_non_hex(self):
-        from app.quote.quote import Quote
+    def test_generate_attestation_binds_nonce(self):
+        nonce_hex = "aa" * 32
+        result = self.quote.generate_attestation(self.quote.ed25519_context, nonce_hex)
 
-        with self.assertRaises(ValueError):
-            Quote._report_data("0xZZ" + "12" * 19)
+        self.assertEqual(result["nonce"], nonce_hex)
+        report_data_bytes = bytes.fromhex(result["report_data"])
+        signing_key_bytes = bytes.fromhex(result["signing_key"])
+        self.assertEqual(report_data_bytes[:32], signing_key_bytes.ljust(32, b"\x00"))
+        self.assertEqual(report_data_bytes[32:], bytes.fromhex(nonce_hex))
+        self.assertEqual(json.loads(result["nvidia_payload"])["nonce"], nonce_hex)
+        self.assertTrue(result["info"]["compose_hash_match"])
+
+    def test_build_report_data_layout(self):
+        identifier = b"\x01" * 16
+        nonce = b"\x02" * 32
+        combined = self.quote._build_report_data(identifier, nonce)
+        self.assertEqual(combined[:32], identifier.ljust(32, b"\x00"))
+        self.assertEqual(combined[32:], nonce)
+
+    def test_random_nonce_generation(self):
+        result = self.quote.generate_attestation(self.quote.ed25519_context)
+        self.assertEqual(len(bytes.fromhex(result["nonce"])), 32)
+        self.assertEqual(len(bytes.fromhex(result["report_data"])), 64)
 
 
-if __name__ == "__main__":
-    unittest.main()

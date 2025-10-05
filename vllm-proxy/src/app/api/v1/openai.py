@@ -4,7 +4,7 @@ from hashlib import sha256
 from typing import Optional
 
 import httpx
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Header
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Header, Query
 from fastapi.responses import (
     JSONResponse,
     PlainTextResponse,
@@ -20,7 +20,14 @@ from app.api.response.response import (
 )
 from app.cache.cache import cache
 from app.logger import log
-from app.quote.quote import ECDSA, ED25519, ecdsa_quote, ed25519_quote
+from app.quote.quote import (
+    ECDSA,
+    ED25519,
+    ecdsa_context,
+    ed25519_context,
+    generate_attestation,
+    sign_message,
+)
 
 router = APIRouter(tags=["openai"])
 
@@ -46,10 +53,10 @@ def hash(payload: str):
 def sign_chat(text: str):
     return dict(
         text=text,
-        signature_ecdsa=ecdsa_quote.sign(text),
-        signing_address_ecdsa=ecdsa_quote.signing_address,
-        signature_ed25519=ed25519_quote.sign(text),
-        signing_address_ed25519=ed25519_quote.signing_address,
+        signature_ecdsa=sign_message(ecdsa_context, text),
+        signing_address_ecdsa=ecdsa_context.signing_address,
+        signature_ed25519=sign_message(ed25519_context, text),
+        signing_address_ed25519=ed25519_context.signing_address,
     )
 
 
@@ -205,33 +212,33 @@ def strip_empty_tool_calls(payload: dict) -> dict:
 
 # Get attestation report of intel quote and nvidia payload
 @router.get("/attestation/report", dependencies=[Depends(verify_authorization_header)])
-async def attestation_report(request: Request, signing_algo: str = None):
+async def attestation_report(
+    request: Request,
+    signing_algo: str | None = None,
+    nonce: str | None = Query(None),
+):
     signing_algo = ECDSA if signing_algo is None else signing_algo
     if signing_algo not in [ECDSA, ED25519]:
         return invalid_signing_algo()
 
-    data = dict(
-        ecdsa=dict(
-            signing_address=ecdsa_quote.signing_address,
-            intel_quote=ecdsa_quote.intel_quote,
-            nvidia_payload=ecdsa_quote.nvidia_payload,
-            event_log=ecdsa_quote.event_log,
-            info=ecdsa_quote.info,
-        ),
-        ed25519=dict(
-            signing_address=ed25519_quote.signing_address,
-            intel_quote=ed25519_quote.intel_quote,
-            nvidia_payload=ed25519_quote.nvidia_payload,
-            event_log=ed25519_quote.event_log,
-            info=ed25519_quote.info,
-        ),
-    )
-    cache.set_attestation(ecdsa_quote.signing_address, data)
+    context = ecdsa_context if signing_algo == ECDSA else ed25519_context
+    try:
+        attestation = generate_attestation(context, nonce)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
-    resp = data[signing_algo]
+    existing = cache.get_attestation(context.signing_address) or {}
+    existing[signing_algo] = attestation
+    cache.set_attestation(context.signing_address, existing)
+
+    resp = dict(attestation)
     try:
         attestations = cache.get_attestations() or []
-        resp["all_attestations"] = [a[signing_algo] for a in attestations]
+        collected = []
+        for item in attestations:
+            if isinstance(item, dict) and signing_algo in item:
+                collected.append(item[signing_algo])
+        resp["all_attestations"] = collected
         return resp
     except Exception as e:
         log.error(f"Error parsing the attestations in cache: {e}")
