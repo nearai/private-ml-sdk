@@ -13,10 +13,12 @@ from dstack_sdk import DstackClient
 from eth_account.messages import encode_defunct
 from nv_attestation_sdk import attestation
 from verifier import cc_admin
+from app.logger import log
 
 ED25519 = "ed25519"
 ECDSA = "ecdsa"
 GPU_ARCH = "HOPPER"
+NO_GPU_MODE = os.getenv("GPU_NO_HW_MODE", "0").lower() in {"1", "true", "yes"}
 
 
 @dataclass
@@ -62,7 +64,11 @@ def _parse_nonce(nonce: Optional[bytes | str]) -> bytes:
     return nonce_bytes
 
 
-def _collect_gpu_evidence(nonce_hex: str) -> list:
+def _collect_gpu_evidence(nonce_hex: str, no_gpu_mode: bool) -> list:
+    if no_gpu_mode:
+        log.info("GPU evidence no-GPU mode enabled; using canned evidence")
+        return cc_admin.collect_gpu_evidence_remote(nonce_hex, no_gpu_mode=True)
+
     try:
         pynvml.nvmlInit()
         device_count = pynvml.nvmlDeviceGetCount()
@@ -81,9 +87,16 @@ def _collect_gpu_evidence(nonce_hex: str) -> list:
         )
         return attester.get_evidence(options={"ppcie_mode": False})
     except pynvml.NVMLError as error:
-        raise Exception(f"CUDA Error: {error}")
+        log.error("NVML error while collecting GPU evidence: %s", error)
+        raise Exception("NVML error during GPU evidence collection") from error
+    except Exception as error:
+        log.error("GPU evidence collection failed: %s", error)
+        raise
     finally:
-        pynvml.nvmlShutdown()
+        try:
+            pynvml.nvmlShutdown()
+        except pynvml.NVMLError:
+            pass
 
 
 def _build_nvidia_payload(nonce_hex: str, evidences: list) -> str:
@@ -151,7 +164,7 @@ def generate_attestation(
     quote_result = client.get_quote(report_data)
     event_log = json.loads(quote_result.event_log)
 
-    gpu_evidence = _collect_gpu_evidence(nonce_hex)
+    gpu_evidence = _collect_gpu_evidence(nonce_hex, NO_GPU_MODE)
     if not gpu_evidence:
         raise Exception("No GPU evidence found")
     nvidia_payload = _build_nvidia_payload(nonce_hex, gpu_evidence)

@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Minimal guide for checking signed chat responses."""
 
-import base64
 import json
 import os
 import secrets
@@ -11,78 +10,65 @@ import requests
 from eth_account import Account
 from eth_account.messages import encode_defunct
 
-API_KEY = os.environ["API_KEY"]
+from verifiers.attestation_verifier import (
+    check_report_data,
+    check_gpu,
+    check_tdx_quote,
+    SIGSTORE_PROVENANCE,
+)
+
+API_KEY = os.environ.get("API_KEY", "")
 MODEL = "phala/deepseek-chat-v3-0324"
 BASE_URL = "https://api.redpill.ai"
-GPU_VERIFIER = "https://nras.attestation.nvidia.com/v3/attest/gpu"
-INTEL_VERIFIER = "https://cloud-api.phala.network/api/v1/attestations/verify"
-SIGSTORE_PROVENANCE = (
-    "https://search.sigstore.dev/?hash=sha256:77fbe5f142419d6f52b04c0e749aa3facf9359dcd843f68d073e24d0eba7c5dd"
-)
 
 
 def sha256_text(text):
+    """Calculate SHA256 hash of text."""
     return sha256(text.encode()).hexdigest()
 
 
 def fetch_signature(chat_id):
+    """Fetch signature for a chat completion."""
     url = f"{BASE_URL}/v1/signature/{chat_id}?model={MODEL}"
     headers = {"Authorization": f"Bearer {API_KEY}"}
     return requests.get(url, headers=headers, timeout=30).json()
 
 
 def recover_signer(text, signature):
+    """Recover Ethereum address from ECDSA signature."""
     message = encode_defunct(text=text)
     return Account.recover_message(message, signature=signature)
 
 
 def fetch_attestation_for(signing_address):
+    """Fetch attestation for a specific signing address."""
     nonce = secrets.token_hex(32)
     url = f"{BASE_URL}/v1/attestation/report?model={MODEL}&nonce={nonce}"
     report = requests.get(url, headers={"Authorization": f"Bearer {API_KEY}"}, timeout=30).json()
-    nodes = report.get("all_attestations") or [report]
-    node = next(item for item in nodes if item["signing_address"].lower() == signing_address.lower())
-    return node, nonce
+
+    # Handle both single attestation and multi-node response formats
+    if "all_attestations" in report:
+        # Multi-node format: find the attestation matching the signing address
+        attestation = next(
+            item for item in report["all_attestations"]
+            if item["signing_address"].lower() == signing_address.lower()
+        )
+    else:
+        # Single attestation format: use the report directly
+        attestation = report
+
+    return attestation, nonce
 
 
-def check_attestation(signing_address, node, nonce):
-    report_data = bytes.fromhex(node["report_data"])
-    signing_key = bytes.fromhex(node["signing_key"])
-    embedded_key = report_data[:32]
-    embedded_nonce = report_data[32:]
-
-    print("Report data binds signing key:", embedded_key == signing_key.ljust(32, b"\x00"))
-    print("Report data embeds nonce:", embedded_nonce.hex() == nonce)
-
-    derived_address = "0x" + node["signing_key"][-40:]
-    print("Signing address derives from attested key:", derived_address.lower() == signing_address.lower())
-
-    payload = json.loads(node["nvidia_payload"])
-    print("GPU payload nonce matches:", payload["nonce"].lower() == nonce)
-    body = requests.post(GPU_VERIFIER, data=node["nvidia_payload"], timeout=30).json()
-    jwt_token = body[0][1]
-    verdict = json.loads(base64url_payload(jwt_token))["x-nvidia-overall-att-result"]
-    print("NVIDIA attestation verdict:", verdict)
-
-    intel = requests.post(INTEL_VERIFIER, json={"hex": node["intel_quote"]}, timeout=30).json()
-    print("Intel attestation accepted:", intel.get("verified"))
-    if intel.get("message"):
-        print("Intel verifier message:", intel["message"])
-
-    compose = node["info"]["tcb_info"].get("app_compose")
-    if compose:
-        print("\nDocker compose manifest attested by the enclave:")
-        print(compose)
-        print("Compose sha256:", sha256(compose.encode()).hexdigest())
-
-
-def base64url_payload(jwt_token):
-    payload_b64 = jwt_token.split(".")[1]
-    padded = payload_b64 + "=" * ((4 - len(payload_b64) % 4) % 4)
-    return base64.urlsafe_b64decode(padded).decode()
+def check_attestation(signing_address, attestation, nonce):
+    """Verify attestation for a signing address (calls check_report_data, check_gpu, check_tdx_quote)."""
+    check_report_data(attestation, nonce)
+    check_gpu(attestation, nonce)
+    check_tdx_quote(attestation)
 
 
 def verify_chat(chat_id, request_body, response_text, label):
+    """Verify a chat completion signature and attestation."""
     request_hash = sha256_text(request_body)
     response_hash = sha256_text(response_text)
 
@@ -100,10 +86,10 @@ def verify_chat(chat_id, request_body, response_text, label):
     recovered = recover_signer(hashed_text, signature)
     print("Signature valid:", recovered.lower() == signing_address.lower())
 
-    node, nonce = fetch_attestation_for(signing_address)
-    print("\nAttestation signer:", node["signing_address"])
+    attestation, nonce = fetch_attestation_for(signing_address)
+    print("\nAttestation signer:", attestation["signing_address"])
     print("Attestation nonce:", nonce)
-    check_attestation(signing_address, node, nonce)
+    check_attestation(signing_address, attestation, nonce)
 
     print("\nReview Sigstore provenance for the container image:")
     print(SIGSTORE_PROVENANCE)
@@ -157,6 +143,11 @@ def non_streaming_example():
 
 
 def main():
+    """Run example verification of streaming and non-streaming chat completions."""
+    if not API_KEY:
+        print("Error: API_KEY environment variable is required")
+        print("Set it with: export API_KEY=your-api-key")
+        return
     streaming_example()
     non_streaming_example()
 

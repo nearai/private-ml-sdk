@@ -6,7 +6,20 @@ Tools for validating Phala Cloud attestation and response signatures.
 
 - Python 3.10+
 - `requests`, `eth-account`, `web3`
-- Phala Cloud API key (`API_KEY` env var for the signature verifier)
+- Phala Cloud API key from https://redpill.ai
+
+## Setup
+
+1. Copy `.env.example` to `.env` and add your API key:
+   ```bash
+   cp .env.example .env
+   # Edit .env and set your API_KEY
+   ```
+
+2. Load environment variables:
+   ```bash
+   source .env
+   ```
 
 ## Attestation verifier
 
@@ -25,7 +38,7 @@ Fetches chat completions, verifies the ECDSA signature, and cross-checks the
 attested signing key and nonce against a fresh report.
 
 ```bash
-export API_KEY=<YOUR_API_KEY>
+source .env  # Load API_KEY from .env file
 python3 signature_verifier.py
 ```
 
