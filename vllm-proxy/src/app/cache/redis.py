@@ -1,4 +1,5 @@
 import os
+import time
 from typing import Optional
 
 import redis
@@ -8,6 +9,9 @@ REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
 REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
 REDIS_PASSWORD = os.getenv("REDIS_PASSWORD")
 REDIS_DB = int(os.getenv("REDIS_DB", "0"))
+
+# Circuit breaker: skip Redis for this duration after failure
+CIRCUIT_BREAKER_DURATION = 10  # seconds
 
 
 class RedisCache:
@@ -21,9 +25,24 @@ class RedisCache:
         password: str = REDIS_PASSWORD,
         db: int = REDIS_DB,
     ):
-        """Initialize Redis connection"""
-        self.redis_client = redis.Redis(host=host, port=port, db=db, password=password)
+        """Initialize Redis connection (lazy - allows hot-adding Redis later)"""
+        self.redis_client = redis.Redis(
+            host=host, port=port, db=db, password=password,
+            socket_connect_timeout=0.1,  # 100ms - fail fast
+            socket_timeout=0.1,  # 100ms - fail fast
+            decode_responses=True
+        )
         self.expiration = expiration
+        self._circuit_breaker_until = 0.0  # timestamp to skip Redis until
+
+    def _is_circuit_open(self) -> bool:
+        """Check if circuit breaker is active (Redis is being skipped)."""
+        return time.time() < self._circuit_breaker_until
+
+    def _open_circuit(self) -> None:
+        """Open circuit breaker - skip Redis for configured duration."""
+        self._circuit_breaker_until = time.time() + CIRCUIT_BREAKER_DURATION
+        log.warning("Redis circuit breaker opened for %ds", CIRCUIT_BREAKER_DURATION)
 
     def set_string(self, key: str, value: str) -> bool:
         """
@@ -34,10 +53,14 @@ class RedisCache:
         Returns:
             bool: True if successful, False otherwise
         """
+        if self._is_circuit_open():
+            return False
+
         try:
             self.redis_client.set(key, value, ex=self.expiration)
             return True
         except redis.RedisError:
+            self._open_circuit()
             return False
 
     def get_string(self, key: str) -> Optional[str]:
@@ -48,11 +71,15 @@ class RedisCache:
         Returns:
             str: cached value if exists, None otherwise
         """
+        if self._is_circuit_open():
+            return None
+
         try:
-            value = self.redis_client.get(key)
-            return value.decode("utf-8") if value else None
-        except (redis.RedisError, UnicodeDecodeError) as e:
-            log.error(f"Redis get error: {e}")
+            # decode_responses=True handles decoding automatically
+            return self.redis_client.get(key)
+        except redis.RedisError as e:
+            log.error("Redis get error: %s", e)
+            self._open_circuit()
             return None
 
     def delete(self, key: str) -> bool:
@@ -68,18 +95,23 @@ class RedisCache:
         except redis.RedisError:
             return False
 
-    def get_all_keys(self, prefix: str) -> Optional[list]:
+    def get_all_values(self, prefix: str) -> list[str]:
         """
-        Get all keys with a given prefix
+        Get all values with a given prefix using SCAN (non-blocking)
         """
-        try:
-            return self.redis_client.keys(f"{prefix}:*")
-        except redis.RedisError:
-            return None
+        if self._is_circuit_open():
+            return []
 
-    def get_all_values(self, prefix: str) -> Optional[list]:
-        """
-        Get all values with a given prefix
-        """
-        keys = self.get_all_keys(prefix)
-        return [self.get_string(key) for key in keys]
+        try:
+            values = []
+            pattern = f"{prefix}:*"
+            # Use SCAN instead of KEYS to avoid blocking Redis
+            for key in self.redis_client.scan_iter(match=pattern, count=100):
+                value = self.redis_client.get(key)
+                if value:
+                    values.append(value)
+            return values
+        except redis.RedisError as e:
+            log.error("Redis scan error: %s", e)
+            self._open_circuit()
+            return []

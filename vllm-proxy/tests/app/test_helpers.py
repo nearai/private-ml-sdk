@@ -1,13 +1,21 @@
 from unittest.mock import patch, AsyncMock, MagicMock
 import sys
 import os
-from dataclasses import dataclass
 
-# Mock TappdClient response
-@dataclass
-class MockTdxQuoteResult:
-    quote: str = "deadbeef"  # Valid hex string for testing
-    event_log: str = '{"test": "event_log"}'  # Mock event log JSON string
+from tests.app.sample_dstack_data import SAMPLE_DSTACK_INFO, SAMPLE_DSTACK_QUOTE
+
+class MockDstackResponse:
+    def __init__(self, payload):
+        self._payload = payload
+        self.quote = payload.get("quote")
+        self.event_log = payload.get("event_log")
+
+    def model_dump(self):
+        return self._payload
+
+    # For older call sites that still expect dict()
+    def dict(self):
+        return self._payload
 
 def setup_verifier_mock():
     # Mock the verifier module
@@ -25,16 +33,21 @@ def setup_verifier_mock():
     sys.modules['verifier'] = mock_verifier
     sys.modules['verifier.cc_admin'] = mock_cc_admin
 
-class MockTappdClientClass:
+class MockDstackClientClass:
     def __init__(self):
-        pass
-    
-    def tdx_quote(self, *args, **kwargs):
-        return MockTdxQuoteResult()
+        self.last_report_data = None
+
+    def get_quote(self, report_data, *args, **kwargs):
+        self.last_report_data = report_data
+        return MockDstackResponse(SAMPLE_DSTACK_QUOTE)
+
+    def info(self):
+        return MockDstackResponse(SAMPLE_DSTACK_INFO)
 
 def setup_dstack_mock():
-    sys.modules['dstack_sdk'] = MagicMock()
-    sys.modules['dstack_sdk'].TappdClient = MockTappdClientClass
+    mock_module = MagicMock()
+    mock_module.DstackClient = MockDstackClientClass
+    sys.modules['dstack_sdk'] = mock_module
 
 def setup_pynvml_mock():
     # Mock pynvml module to avoid GPU dependency in tests

@@ -1,151 +1,106 @@
-import unittest
-import base64
 import json
-from unittest.mock import patch, MagicMock, patch
-
-patch.TEST_PREFIX = ("test", "setUp")
-
-ED25519 = "ed25519"
-ECDSA = "ecdsa"
-
-# Init mocked values
-# 1. Verifier
-mock_verifier = MagicMock()
-mock_verifier.cc_admin = MagicMock()
-mock_verifier.cc_admin.collect_gpu_evidence.return_value = [
-    {
-        "attestationReportHexStr": "mock_attestation_report",
-        "certChainBase64Encoded": "mock_cert_chain",
-    }
-]
-# 2. Dstack SDK
-mock_dstack_sdk = MagicMock()
-mock_client = mock_dstack_sdk.TappdClient.return_value
-mock_result = MagicMock()
-mock_result.quote = "614756736247383d"  # 'hello'
-mock_client.tdx_quote.return_value = mock_result
+import sys
+import types
+import unittest
+from importlib.machinery import SourceFileLoader
+from importlib.util import module_from_spec, spec_from_loader
+from pathlib import Path
 
 
-@patch.dict("sys.modules", {"verifier": mock_verifier, "dstack_sdk": mock_dstack_sdk})
 class TestQuote(unittest.TestCase):
-
-    def test_init_ed25519(self):
-        # Test initialization with ed25519 signing
-        from app.quote.quote import Quote
-
-        quote = Quote(signing_method=ED25519)
-        result = quote.init()
-
-        self.assertIsNotNone(result["signing_address"])
-        self.assertIsNotNone(result["intel_quote"])
-        self.assertIsNotNone(result["nvidia_payload"])
-        self.assertEqual(quote.signing_method, ED25519)
-
-    def test_init_ecdsa(self):
-        # Test initialization with web3 (ECDSA) signing
-        from app.quote.quote import Quote
-
-        quote = Quote(signing_method=ECDSA)
-        result = quote.init(force=True)
-
-        self.assertIsNotNone(result["signing_address"])
-        self.assertIsNotNone(result["intel_quote"])
-        self.assertIsNotNone(result["nvidia_payload"])
-        self.assertEqual(quote.signing_method, ECDSA)
-
-    def test_sign_ed25519(self):
-        # Test signing using ed25519
-        from app.quote.quote import Quote
-
-        quote = Quote(signing_method=ED25519)
-        quote.init()
-        content = "Test message"
-        signature = quote.sign(content)
-
-        self.assertIsInstance(signature, str)
-        self.assertGreater(len(signature), 0)
-
-    def test_sign_ecdsa(self):
-        # Test signing using web3 (ECDSA)
-        from app.quote.quote import Quote
-
-        quote = Quote(signing_method=ECDSA)
-        quote.init()
-        content = "Test message"
-        signature = quote.sign(content)
-
-        self.assertIsInstance(signature, str)
-        self.assertGreater(len(signature), 0)
-
-    def test_sign_ed25519(self):
-        # Initialize Quote with ED25519
-        from app.quote.quote import Quote
-
-        quote = Quote(ED25519)
-        quote.init()
-
-        # Test signing
-        content = "test_message"
-        signature = quote.sign(content)
-
-        # Assertions
-        self.assertIsInstance(signature, str)
-        self.assertTrue(len(signature) > 0)
-
-    def test_sign_ecdsa(self):
-        # Initialize Quote with ECDSA
-        from app.quote.quote import Quote
-
-        quote = Quote(ECDSA)
-        quote.init()
-
-        # Test signing
-        content = "test_message"
-        signature = quote.sign(content)
-
-        # Assertions
-        self.assertIsInstance(signature, str)
-        self.assertTrue(len(signature) > 0)
-
-    def test_build_payload(self):
-        # Test payload building
-        from app.quote.quote import Quote
-
-        quote = Quote(signing_method=ED25519)
-        quote.init()
-        nonce = "mock_nonce"
-        evidence = "mock_evidence"
-        cert_chain = "mock_cert_chain"
-
-        payload = quote.build_payload(nonce, evidence, cert_chain)
-        self.assertIsInstance(payload, str)
-
-        # Verify payload structure
-        payload_data = json.loads(payload)
-        self.assertEqual(payload_data["nonce"], nonce)
-        self.assertEqual(payload_data["arch"], "HOPPER")
-        self.assertEqual(
-            payload_data["evidence_list"][0]["evidence"],
-            base64.b64encode(evidence.encode("ascii")).decode("utf-8"),
+    def setUp(self):
+        self.mock_cc_admin = types.SimpleNamespace(
+            collect_gpu_evidence_remote=lambda nonce, **kwargs: [{"mock": "gpu"}],
         )
-        self.assertEqual(payload_data["evidence_list"][0]["certificate"], cert_chain)
 
-    def test_init_unsupported_signing_method(self):
-        # Test unsupported signing method
-        from app.quote.quote import Quote
+        attestation_instance = types.SimpleNamespace(
+            set_name=lambda *_: None,
+            set_nonce=lambda *_: None,
+            set_claims_version=lambda *_: None,
+            set_ocsp_nonce_disabled=lambda *_: None,
+            add_verifier=lambda **kwargs: None,
+            get_evidence=lambda **kwargs: [{"mock": "gpu"}],
+        )
+        attestation_mod = types.SimpleNamespace(
+            Attestation=lambda: attestation_instance,
+            Devices=types.SimpleNamespace(GPU="GPU"),
+            Environment={"REMOTE": "REMOTE"},
+        )
 
-        with self.assertRaises(ValueError):
-            quote = Quote("unsupported_method")
-            quote.init()
+        pynvml_mod = types.SimpleNamespace(
+            nvmlInit=lambda: None,
+            nvmlShutdown=lambda: None,
+            nvmlDeviceGetCount=lambda: 1,
+        )
 
-    def test_sign_unsupported_signing_method(self):
-        # Test unsupported signing method for signing
-        from app.quote.quote import Quote
+        client = types.SimpleNamespace()
+        client.get_quote = lambda report_data: types.SimpleNamespace(
+            quote="mock_quote",
+            event_log=json.dumps({"mock": True}),
+        )
+        client.info = lambda: types.SimpleNamespace(
+            model_dump=lambda: {
+                "compose_hash": "db669af634b75c7f298400f3b6c2aa8ba54998bac83e23d10ab4eaadc4b50ccf",
+                "tcb_info": {"app_compose": "compose", "mr_config": "01db669af634b75c7f298400f3b6c2aa8ba54998bac83e23d10ab4eaadc4b50ccf"},
+            }
+        )
+        dstack_mod = types.SimpleNamespace(DstackClient=lambda: client)
 
-        quote = Quote("unsupported_method")
-        with self.assertRaises(ValueError):
-            quote.sign("test_message")
+        self.original_modules = {}
+        for name, module in {
+            "verifier": types.SimpleNamespace(cc_admin=self.mock_cc_admin),
+            "nv_attestation_sdk": types.SimpleNamespace(attestation=attestation_mod),
+            "pynvml": pynvml_mod,
+            "dstack_sdk": dstack_mod,
+        }.items():
+            if name in sys.modules:
+                self.original_modules[name] = sys.modules[name]
+            sys.modules[name] = module
+
+        root = Path(__file__).resolve().parents[3] / "src"
+        if str(root) not in sys.path:
+            sys.path.insert(0, str(root))
+
+        if "app" not in sys.modules:
+            sys.modules["app"] = types.ModuleType("app")
+            sys.modules["app"].__path__ = [str(root / "app")]
+
+        if "app.quote" not in sys.modules:
+            quote_pkg = types.ModuleType("app.quote")
+            quote_pkg.__path__ = [str(root / "app" / "quote")]
+            sys.modules["app.quote"] = quote_pkg
+
+        module_path = root / "app" / "quote" / "quote.py"
+        loader = SourceFileLoader("app.quote.quote", str(module_path))
+        spec = spec_from_loader(loader.name, loader)
+        module = module_from_spec(spec)
+        loader.exec_module(module)
+        sys.modules["app.quote.quote"] = module
+
+        self.quote = module
+
+    def tearDown(self):
+        sys.modules.update(self.original_modules)
+        for key in ["verifier", "nv_attestation_sdk", "pynvml", "dstack_sdk", "app.quote.quote", "app.quote"]:
+            sys.modules.pop(key, None)
+
+    def test_generate_attestation_binds_nonce(self):
+        request_nonce_hex = "aa" * 32
+        result = self.quote.generate_attestation(self.quote.ed25519_context, request_nonce_hex)
+
+        self.assertEqual(result["request_nonce"], request_nonce_hex)
+        # GPU should use the same request_nonce
+        self.assertEqual(json.loads(result["nvidia_payload"])["nonce"], request_nonce_hex)
+
+    def test_build_report_data_layout(self):
+        identifier = b"\x01" * 16
+        nonce = b"\x02" * 32
+        combined = self.quote._build_report_data(identifier, nonce)
+        self.assertEqual(combined[:32], identifier.ljust(32, b"\x00"))
+        self.assertEqual(combined[32:], nonce)
+
+    def test_random_nonce_generation(self):
+        result = self.quote.generate_attestation(self.quote.ed25519_context)
+        self.assertEqual(len(bytes.fromhex(result["request_nonce"])), 32)
 
 
-if __name__ == "__main__":
-    unittest.main()
