@@ -14,7 +14,7 @@ from verifiers.attestation_verifier import (
     check_report_data,
     check_gpu,
     check_tdx_quote,
-    SIGSTORE_PROVENANCE,
+    show_sigstore_provenance,
 )
 
 API_KEY = os.environ.get("API_KEY", "")
@@ -65,6 +65,7 @@ def check_attestation(signing_address, attestation, nonce):
     check_report_data(attestation, nonce)
     check_gpu(attestation, nonce)
     check_tdx_quote(attestation)
+    show_sigstore_provenance(attestation)
 
 
 def verify_chat(chat_id, request_body, response_text, label):
@@ -90,9 +91,6 @@ def verify_chat(chat_id, request_body, response_text, label):
     print("\nAttestation signer:", attestation["signing_address"])
     print("Attestation nonce:", nonce)
     check_attestation(signing_address, attestation, nonce)
-
-    print("\nReview Sigstore provenance for the container image:")
-    print(SIGSTORE_PROVENANCE)
 
 
 def streaming_example():

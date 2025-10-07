@@ -4,6 +4,7 @@
 import argparse
 import base64
 import json
+import re
 import secrets
 from hashlib import sha256
 
@@ -12,9 +13,7 @@ import requests
 API_BASE = "https://api.redpill.ai"
 GPU_VERIFIER_API = "https://nras.attestation.nvidia.com/v3/attest/gpu"
 PHALA_TDX_VERIFIER_API = "https://cloud-api.phala.network/api/v1/attestations/verify"
-SIGSTORE_PROVENANCE = (
-    "https://search.sigstore.dev/?hash=sha256:77fbe5f142419d6f52b04c0e749aa3facf9359dcd843f68d073e24d0eba7c5dd"
-)
+SIGSTORE_SEARCH_BASE = "https://search.sigstore.dev/?hash="
 
 
 def fetch_report(model, nonce):
@@ -117,11 +116,58 @@ def check_tdx_quote(attestation):
     }
 
 
+def extract_sigstore_links(compose):
+    """Extract all @sha256:xxx image digests and return Sigstore search links."""
+    if not compose:
+        return []
+
+    # Match @sha256:hexdigest pattern in Docker compose
+    pattern = r'@sha256:([0-9a-f]{64})'
+    digests = re.findall(pattern, compose)
+
+    return [f"{SIGSTORE_SEARCH_BASE}sha256:{digest}" for digest in digests]
+
+
+def check_sigstore_links(links):
+    """Check that Sigstore links are accessible (not 404)."""
+    results = []
+    for link in links:
+        try:
+            response = requests.head(link, timeout=10, allow_redirects=True)
+            accessible = response.status_code < 400
+            results.append((link, accessible, response.status_code))
+        except requests.RequestException as e:
+            results.append((link, False, str(e)))
+    return results
+
+
+def show_sigstore_provenance(attestation):
+    """Extract and display Sigstore provenance links from attestation."""
+    compose = attestation.get("info", {}).get("tcb_info", {}).get("app_compose")
+    if not compose:
+        return
+
+    sigstore_links = extract_sigstore_links(compose)
+    if not sigstore_links:
+        return
+
+    print("\n🔐 Sigstore provenance")
+    print("Checking Sigstore accessibility for container images...")
+    link_results = check_sigstore_links(sigstore_links)
+
+    for link, accessible, status in link_results:
+        if accessible:
+            print(f"  ✓ {link} (HTTP {status})")
+        else:
+            print(f"  ✗ {link} (HTTP {status})")
+
+
 def show_compose(attestation):
     """Display the Docker compose manifest from the attestation."""
     compose = attestation["info"]["tcb_info"].get("app_compose")
     if not compose:
         return
+
     print("\nDocker compose manifest attested by the enclave:")
     print(compose)
 
@@ -160,9 +206,7 @@ def main() -> None:
     check_tdx_quote(attestation)
 
     show_compose(attestation)
-
-    print("\nReview Sigstore provenance for the container image:")
-    print(SIGSTORE_PROVENANCE)
+    show_sigstore_provenance(attestation)
 
 
 if __name__ == "__main__":
