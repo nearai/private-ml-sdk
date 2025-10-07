@@ -25,7 +25,7 @@ NO_GPU_MODE = os.getenv("GPU_NO_HW_MODE", "0").lower() in {"1", "true", "yes"}
 class SigningContext:
     method: str
     signing_address: str
-    attested_key_bytes: bytes
+    signing_address_bytes: bytes
     _ed_private: Optional[Ed25519PrivateKey] = None
     _raw_account: Optional[web3.Account] = None
 
@@ -39,14 +39,15 @@ class SigningContext:
         raise ValueError("Signing context is not properly initialised")
 
 
-def _build_report_data(identifier: bytes, nonce: bytes) -> bytes:
-    if not identifier:
-        raise ValueError("Identifier must be provided")
-    if len(identifier) > 32:
-        raise ValueError("Identifier exceeds 32 bytes")
+def _build_report_data(signing_address_bytes: bytes, nonce: bytes) -> bytes:
+    """Build TDX report data: [signing_address (padded to 32 bytes) || nonce (32 bytes)]"""
+    if not signing_address_bytes:
+        raise ValueError("Signing address must be provided")
+    if len(signing_address_bytes) > 32:
+        raise ValueError("Signing address exceeds 32 bytes")
     if len(nonce) != 32:
         raise ValueError("Nonce must be 32 bytes")
-    return identifier.ljust(32, b"\x00") + nonce
+    return signing_address_bytes.ljust(32, b"\x00") + nonce
 
 
 def _parse_nonce(nonce: Optional[bytes | str]) -> bytes:
@@ -126,7 +127,7 @@ def _create_ed25519_context() -> SigningContext:
     return SigningContext(
         method=ED25519,
         signing_address=signing_address,
-        attested_key_bytes=public_key_bytes,
+        signing_address_bytes=public_key_bytes,
         _ed_private=private_key,
     )
 
@@ -135,12 +136,12 @@ def _create_ecdsa_context() -> SigningContext:
     w3 = web3.Web3()
     account = w3.eth.account.create()
     signing_address = account.address
-    pub_key_bytes = account._key_obj.public_key.to_bytes()
-    attested_key_bytes = eth_utils.keccak(pub_key_bytes)
+    # Use the 20-byte Ethereum address for attestation (standard verification identifier)
+    address_bytes = bytes.fromhex(signing_address[2:])  # Remove '0x' prefix
     return SigningContext(
         method=ECDSA,
         signing_address=signing_address,
-        attested_key_bytes=attested_key_bytes,
+        signing_address_bytes=address_bytes,
         _raw_account=account,
     )
 
@@ -156,26 +157,29 @@ def sign_message(context: SigningContext, content: str) -> str:
 def generate_attestation(
     context: SigningContext, nonce: Optional[bytes | str] = None
 ) -> dict:
-    nonce_bytes = _parse_nonce(nonce)
-    nonce_hex = nonce_bytes.hex()
-    report_data = _build_report_data(context.attested_key_bytes, nonce_bytes)
+    request_nonce_bytes = _parse_nonce(nonce)
+    request_nonce_hex = request_nonce_bytes.hex()
+
+    # Build TDX report data: signing_address || request_nonce
+    report_data = _build_report_data(context.signing_address_bytes, request_nonce_bytes)
 
     client = DstackClient()
     quote_result = client.get_quote(report_data)
     event_log = json.loads(quote_result.event_log)
 
-    gpu_evidence = _collect_gpu_evidence(nonce_hex, NO_GPU_MODE)
+    # Use request_nonce directly for GPU attestation
+    gpu_evidence = _collect_gpu_evidence(request_nonce_hex, NO_GPU_MODE)
     if not gpu_evidence:
         raise Exception("No GPU evidence found")
-    nvidia_payload = _build_nvidia_payload(nonce_hex, gpu_evidence)
+    nvidia_payload = _build_nvidia_payload(request_nonce_hex, gpu_evidence)
 
     info = client.info().model_dump()
     info = _augment_info(info)
 
     return dict(
         signing_address=context.signing_address,
-        signing_key=context.attested_key_bytes.hex(),
-        nonce=nonce_hex,
+        signing_algo=context.method,
+        request_nonce=request_nonce_hex,
         report_data=report_data.hex(),
         intel_quote=quote_result.quote,
         nvidia_payload=nvidia_payload,

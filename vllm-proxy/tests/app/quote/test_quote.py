@@ -85,15 +85,17 @@ class TestQuote(unittest.TestCase):
             sys.modules.pop(key, None)
 
     def test_generate_attestation_binds_nonce(self):
-        nonce_hex = "aa" * 32
-        result = self.quote.generate_attestation(self.quote.ed25519_context, nonce_hex)
+        request_nonce_hex = "aa" * 32
+        result = self.quote.generate_attestation(self.quote.ed25519_context, request_nonce_hex)
 
-        self.assertEqual(result["nonce"], nonce_hex)
+        self.assertEqual(result["request_nonce"], request_nonce_hex)
         report_data_bytes = bytes.fromhex(result["report_data"])
-        signing_key_bytes = bytes.fromhex(result["signing_key"])
-        self.assertEqual(report_data_bytes[:32], signing_key_bytes.ljust(32, b"\x00"))
-        self.assertEqual(report_data_bytes[32:], bytes.fromhex(nonce_hex))
-        self.assertEqual(json.loads(result["nvidia_payload"])["nonce"], nonce_hex)
+        signing_address_bytes = bytes.fromhex(result["signing_address"])
+        self.assertEqual(report_data_bytes[:32], signing_address_bytes.ljust(32, b"\x00"))
+        self.assertEqual(report_data_bytes[32:], bytes.fromhex(request_nonce_hex))
+
+        # GPU should use the same request_nonce
+        self.assertEqual(json.loads(result["nvidia_payload"])["nonce"], request_nonce_hex)
         self.assertTrue(result["info"]["compose_hash_match"])
 
     def test_build_report_data_layout(self):
@@ -105,7 +107,7 @@ class TestQuote(unittest.TestCase):
 
     def test_random_nonce_generation(self):
         result = self.quote.generate_attestation(self.quote.ed25519_context)
-        self.assertEqual(len(bytes.fromhex(result["nonce"])), 32)
+        self.assertEqual(len(bytes.fromhex(result["request_nonce"])), 32)
         self.assertEqual(len(bytes.fromhex(result["report_data"])), 64)
 
 
