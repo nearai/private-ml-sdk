@@ -17,99 +17,121 @@ ATTESTATION_PREFIX = "attestation"
 
 
 class ChatCache:
-    """Redis-backed cache with local fallback for single-instance deployments."""
+    """
+    Dual-layer cache: Local + optional Redis for cross-server sharing.
+
+    - Redis enabled: Write-through to both, read from Redis first
+    - Redis disabled: Local-only mode
+    - Redis fails: Automatic fallback to local, retry on next operation
+    """
 
     def __init__(self) -> None:
-        self.redis_cache = RedisCache(expiration=CHAT_CACHE_EXPIRATION)
-        self.local_cache = LocalCache(expiration=CHAT_CACHE_EXPIRATION)
-        self._redis_enabled = True
-        self._local_attestations: dict[str, dict] = {}
+        self._local = LocalCache(expiration=CHAT_CACHE_EXPIRATION)
+        self._redis = self._init_redis()
+
+    def _init_redis(self) -> Optional[RedisCache]:
+        """Initialize Redis only if REDIS_HOST is configured."""
+        if not os.getenv("REDIS_HOST"):
+            log.info("Redis not configured, using local cache only")
+            return None
+        return RedisCache(expiration=CHAT_CACHE_EXPIRATION)
 
     def _make_key(self, prefix: str, key: str) -> str:
+        """Build namespaced cache key: model:prefix:key"""
         return f"{MODEL_NAME}:{prefix}:{key}"
 
-    def _set_string(self, key: str, value: str) -> bool:
-        if self._redis_enabled:
-            try:
-                if self.redis_cache.set_string(key, value):
-                    return True
-                log.warning("Redis unavailable, caching %s locally", key)
-            except Exception as exc:  # pragma: no cover
-                log.error("Redis set error for %s: %s", key, exc)
-                self._redis_enabled = False
+    def _write_string(self, key: str, value: str) -> None:
+        """Write string to local and optionally to Redis."""
+        self._local.set(key, value)
 
-        self.local_cache.set(key, value)
-        return True
-
-    def _get_string(self, key: str) -> Optional[str]:
-        if self._redis_enabled:
+        if self._redis:
             try:
-                value = self.redis_cache.get_string(key)
-            except Exception as exc:  # pragma: no cover
-                log.error("Redis get error for %s: %s", key, exc)
-                self._redis_enabled = False
-            else:
+                self._redis.set_string(key, value)
+            except Exception as exc:
+                log.warning("Redis write failed for %s: %s", key, exc)
+
+    def _read_string(self, key: str) -> Optional[str]:
+        """Read string from Redis first, fallback to local."""
+        if self._redis:
+            try:
+                value = self._redis.get_string(key)
                 if value:
                     return value
-        return self.local_cache.get(key)
+            except Exception as exc:
+                log.warning("Redis read failed for %s: %s", key, exc)
 
-    def set_chat(self, chat_id: str, chat: str) -> bool:
+        return self._local.get(key)
+
+    # Chat operations
+
+    def set_chat(self, chat_id: str, chat: str) -> None:
+        """Store chat completion data."""
         key = self._make_key(CHAT_PREFIX, chat_id)
-        return self._set_string(key, chat)
+        self._write_string(key, chat)
 
     def get_chat(self, chat_id: str) -> Optional[str]:
+        """Retrieve chat completion data."""
         key = self._make_key(CHAT_PREFIX, chat_id)
-        return self._get_string(key)
+        return self._read_string(key)
 
-    def set_attestation(self, address: str, payload: object) -> bool:
+    # Attestation operations
+
+    def set_attestation(self, address: str, payload: dict) -> None:
+        """Store attestation (auto-serializes to JSON)."""
         key = self._make_key(ATTESTATION_PREFIX, address)
         try:
-            encoded = json.dumps(payload)
-        except Exception as exc:  # pragma: no cover
-            log.error("Attestation serialisation error for %s: %s", address, exc)
-            return False
-
-        if isinstance(payload, dict):
-            self._local_attestations[address] = payload
-        return self._set_string(key, encoded)
+            value = json.dumps(payload)
+            self._write_string(key, value)
+        except (TypeError, ValueError) as exc:
+            log.error("Failed to serialize attestation for %s: %s", address, exc)
 
     def get_attestation(self, address: str) -> Optional[dict]:
+        """Retrieve attestation (auto-deserializes from JSON)."""
         key = self._make_key(ATTESTATION_PREFIX, address)
-        raw = self._get_string(key)
+        raw = self._read_string(key)
         if not raw:
-            return self._local_attestations.get(address)
+            return None
+
+        return self._parse_json(raw, f"attestation {address}")
+
+    def get_attestations(self) -> list[dict]:
+        """
+        Retrieve all attestations for this model (Redis-only feature).
+
+        Returns empty list if Redis not configured or fails.
+        """
+        if not self._redis:
+            return []
+
+        prefix = f"{MODEL_NAME}:{ATTESTATION_PREFIX}"
         try:
-            data = json.loads(raw)
+            values = self._redis.get_all_values(prefix)
+            return self._parse_json_list(values)
+        except Exception as exc:
+            log.warning("Failed to retrieve attestations from Redis: %s", exc)
+            return []
+
+    # JSON helpers
+
+    def _parse_json(self, raw: str, context: str) -> Optional[dict]:
+        """Parse JSON string, log error on failure."""
+        try:
+            return json.loads(raw)
         except json.JSONDecodeError:
-            log.error("Invalid attestation JSON for %s", address)
-            return self._local_attestations.get(address)
-        if isinstance(data, dict):
-            self._local_attestations[address] = data
-        return data
+            log.error("Invalid JSON for %s", context)
+            return None
 
-    def get_attestations(self) -> list:
-        decoded: list[dict] = []
-        if self._redis_enabled:
+    def _parse_json_list(self, raw_values: list[str]) -> list[dict]:
+        """Parse list of JSON strings, skip invalid entries."""
+        result = []
+        for raw in raw_values:
             try:
-                values = self.redis_cache.get_all_values(f"{MODEL_NAME}:{ATTESTATION_PREFIX}")
-                for value in values or []:
-                    try:
-                        item = json.loads(value)
-                    except json.JSONDecodeError:
-                        log.error("Invalid attestation JSON retrieved from cache")
-                        continue
-                    if isinstance(item, dict):
-                        decoded.append(item)
-                        address = item.get("signing_address")
-                        if isinstance(address, str):
-                            self._local_attestations[address] = item
-            except Exception as exc:  # pragma: no cover
-                log.error("Error collecting attestations: %s", exc)
-                self._redis_enabled = False
-
-        if not decoded:
-            decoded = list(self._local_attestations.values())
-        return decoded
+                item = json.loads(raw)
+                if isinstance(item, dict):
+                    result.append(item)
+            except json.JSONDecodeError:
+                log.warning("Skipping invalid JSON in batch parse")
+        return result
 
 
 cache = ChatCache()

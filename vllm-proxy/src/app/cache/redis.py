@@ -21,8 +21,11 @@ class RedisCache:
         password: str = REDIS_PASSWORD,
         db: int = REDIS_DB,
     ):
-        """Initialize Redis connection"""
-        self.redis_client = redis.Redis(host=host, port=port, db=db, password=password)
+        """Initialize Redis connection (lazy - allows hot-adding Redis later)"""
+        self.redis_client = redis.Redis(
+            host=host, port=port, db=db, password=password,
+            socket_connect_timeout=2, socket_timeout=2, decode_responses=True
+        )
         self.expiration = expiration
 
     def set_string(self, key: str, value: str) -> bool:
@@ -49,10 +52,10 @@ class RedisCache:
             str: cached value if exists, None otherwise
         """
         try:
-            value = self.redis_client.get(key)
-            return value.decode("utf-8") if value else None
-        except (redis.RedisError, UnicodeDecodeError) as e:
-            log.error(f"Redis get error: {e}")
+            # decode_responses=True handles decoding automatically
+            return self.redis_client.get(key)
+        except redis.RedisError as e:
+            log.error("Redis get error: %s", e)
             return None
 
     def delete(self, key: str) -> bool:
@@ -68,18 +71,19 @@ class RedisCache:
         except redis.RedisError:
             return False
 
-    def get_all_keys(self, prefix: str) -> Optional[list]:
+    def get_all_values(self, prefix: str) -> list[str]:
         """
-        Get all keys with a given prefix
+        Get all values with a given prefix using SCAN (non-blocking)
         """
         try:
-            return self.redis_client.keys(f"{prefix}:*")
-        except redis.RedisError:
-            return None
-
-    def get_all_values(self, prefix: str) -> Optional[list]:
-        """
-        Get all values with a given prefix
-        """
-        keys = self.get_all_keys(prefix)
-        return [self.get_string(key) for key in keys]
+            values = []
+            pattern = f"{prefix}:*"
+            # Use SCAN instead of KEYS to avoid blocking Redis
+            for key in self.redis_client.scan_iter(match=pattern, count=100):
+                value = self.redis_client.get(key)
+                if value:
+                    values.append(value)
+            return values
+        except redis.RedisError as e:
+            log.error("Redis scan error: %s", e)
+            return []
