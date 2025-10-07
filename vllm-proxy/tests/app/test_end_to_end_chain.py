@@ -1,8 +1,9 @@
-import importlib
 import json
 import os
-import sys
-from collections import namedtuple
+
+# Set GPU_NO_HW_MODE before importing app (NO_GPU_MODE is read at module import time)
+os.environ["GPU_NO_HW_MODE"] = "1"
+
 from hashlib import sha256
 from unittest.mock import patch
 
@@ -11,31 +12,19 @@ import respx
 import pytest
 from fastapi.testclient import TestClient
 
-from tests.app.test_helpers import setup_test_environment, TEST_AUTH_HEADER
+from app.main import app
+from tests.app.test_helpers import TEST_AUTH_HEADER
 from tests.app.sample_dstack_data import NRAS_SAMPLE_RESPONSE
 from verifiers.attestation_verifier import check_report_data, check_gpu
 
-AppContext = namedtuple("AppContext", ["client", "vllm_url"])
-
 
 @pytest.fixture(scope="module")
-def app_context(request) -> AppContext:
-    # Clear modules to ensure clean test environment
-    for mod in ["app.main", "app.api", "app.api.v1", "app.api.v1.openai",
-                "app.quote.quote", "pynvml"]:
-        sys.modules.pop(mod, None)
+def client():
+    return TestClient(app)
 
-    app_module = importlib.import_module("app.main")
-    openai_module = importlib.import_module("app.api.v1.openai")
-
-    # Enable no-GPU mode for testing
-    importlib.import_module("app.quote.quote").NO_GPU_MODE = True
-
-    return AppContext(TestClient(app_module.app), openai_module.VLLM_URL)
-
-def test_chain_of_trust_end_to_end(app_context: AppContext):
+def test_chain_of_trust_end_to_end(client):
     """Test the full chain: chat completion → signature → attestation verification."""
-    client, vllm_url = app_context
+    vllm_url = os.getenv("VLLM_BASE_URL", "http://vllm:8000") + "/v1/chat/completions"
 
     with respx.mock:
         # 1. Mock vLLM upstream and make chat completion request
