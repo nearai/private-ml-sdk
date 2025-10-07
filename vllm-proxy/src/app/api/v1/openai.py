@@ -242,7 +242,7 @@ async def attestation_report(
         return resp
     except Exception as e:
         log.error(f"Error parsing the attestations in cache: {e}")
-        return unexpect_error("Attestation parsing error")
+        return unexpect_error("Error parsing the attestations in cache", e)
 
 
 # VLLM Chat completions
@@ -320,7 +320,7 @@ async def signature(request: Request, chat_id: str, signing_algo: str = None):
         value = json.loads(cache_value)
     except Exception as e:
         log.error(f"Failed to parse the cache value: {cache_value} {e}")
-        return unexpect_error("Failed to parse the cache value")
+        return unexpect_error("Failed to parse the cache value", e)
 
     signing_address = None
     if signing_algo == ECDSA:
