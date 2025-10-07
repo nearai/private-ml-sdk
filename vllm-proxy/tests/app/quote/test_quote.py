@@ -10,7 +10,7 @@ from pathlib import Path
 class TestQuote(unittest.TestCase):
     def setUp(self):
         self.mock_cc_admin = types.SimpleNamespace(
-            collect_gpu_evidence_remote=lambda nonce: [{"mock": "gpu"}],
+            collect_gpu_evidence_remote=lambda nonce, **kwargs: [{"mock": "gpu"}],
         )
 
         attestation_instance = types.SimpleNamespace(

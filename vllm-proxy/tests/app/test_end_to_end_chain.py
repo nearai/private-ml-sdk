@@ -14,7 +14,7 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from tests.app.test_helpers import TEST_AUTH_HEADER
-from tests.app.sample_dstack_data import NRAS_SAMPLE_RESPONSE
+from tests.app.sample_dstack_data import NRAS_SAMPLE_RESPONSE, NRAS_SAMPLE_PPCIE_RESPONSE
 from verifiers.attestation_verifier import check_report_data, check_gpu
 
 
@@ -22,7 +22,8 @@ from verifiers.attestation_verifier import check_report_data, check_gpu
 def client():
     return TestClient(app)
 
-def test_chain_of_trust_end_to_end(client):
+@pytest.mark.parametrize("nras_response", [NRAS_SAMPLE_RESPONSE, NRAS_SAMPLE_PPCIE_RESPONSE])
+def test_chain_of_trust_end_to_end(client, nras_response):
     """Test the full chain: chat completion → signature → attestation verification."""
     vllm_url = os.getenv("VLLM_BASE_URL", "http://vllm:8000") + "/v1/chat/completions"
 
@@ -53,6 +54,6 @@ def test_chain_of_trust_end_to_end(client):
     report_result = check_report_data(attestation_json, nonce)
     assert all(report_result.values()), f"Report data verification failed: {report_result}"
 
-    with patch("verifiers.attestation_verifier.fetch_nvidia_verification", return_value=NRAS_SAMPLE_RESPONSE):
+    with patch("verifiers.attestation_verifier.fetch_nvidia_verification", return_value=nras_response):
         gpu_result = check_gpu(attestation_json, nonce)
         assert gpu_result["nonce_matches"] and gpu_result["verdict"], f"GPU verification failed: {gpu_result}"
