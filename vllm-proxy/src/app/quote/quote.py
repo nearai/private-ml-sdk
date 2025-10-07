@@ -105,18 +105,6 @@ def _build_nvidia_payload(nonce_hex: str, evidences: list) -> str:
     return json.dumps(data)
 
 
-def _augment_info(info: dict) -> dict:
-    tcb_info = info.get("tcb_info") if isinstance(info.get("tcb_info"), dict) else None
-    compose = tcb_info.get("app_compose") if tcb_info else None
-    if compose:
-        calc_hash = hashlib.sha256(compose.encode("utf-8")).hexdigest()
-        info["calculated_compose_hash"] = calc_hash
-        info["compose_hash_match"] = calc_hash == info.get("compose_hash")
-    if tcb_info and "mr_config" in tcb_info:
-        info["mr_config"] = tcb_info["mr_config"]
-    return info
-
-
 def _create_ed25519_context() -> SigningContext:
     private_key = Ed25519PrivateKey.generate()
     public_key_bytes = private_key.public_key().public_bytes(
@@ -174,13 +162,11 @@ def generate_attestation(
     nvidia_payload = _build_nvidia_payload(request_nonce_hex, gpu_evidence)
 
     info = client.info().model_dump()
-    info = _augment_info(info)
 
     return dict(
         signing_address=context.signing_address,
         signing_algo=context.method,
         request_nonce=request_nonce_hex,
-        report_data=report_data.hex(),
         intel_quote=quote_result.quote,
         nvidia_payload=nvidia_payload,
         event_log=event_log,

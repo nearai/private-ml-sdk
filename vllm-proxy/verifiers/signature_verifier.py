@@ -62,9 +62,9 @@ def fetch_attestation_for(signing_address):
 
 def check_attestation(signing_address, attestation, nonce):
     """Verify attestation for a signing address (calls check_report_data, check_gpu, check_tdx_quote)."""
-    check_report_data(attestation, nonce)
+    intel_result = check_tdx_quote(attestation)
+    check_report_data(attestation, nonce, intel_result)
     check_gpu(attestation, nonce)
-    check_tdx_quote(attestation)
     show_sigstore_provenance(attestation)
 
 

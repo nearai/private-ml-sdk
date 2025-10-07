@@ -15,7 +15,7 @@ from fastapi.testclient import TestClient
 from app.main import app
 from tests.app.test_helpers import TEST_AUTH_HEADER
 from tests.app.sample_dstack_data import NRAS_SAMPLE_RESPONSE, NRAS_SAMPLE_PPCIE_RESPONSE
-from verifiers.attestation_verifier import check_report_data, check_gpu
+from verifiers.attestation_verifier import check_report_data, check_gpu, check_tdx_quote
 
 
 @pytest.fixture(scope="module")
@@ -51,9 +51,15 @@ def test_chain_of_trust_end_to_end(client, nras_response):
     attestation_json = client.get("/v1/attestation/report", params={"model": request_payload["model"], "nonce": nonce}, headers={"Authorization": TEST_AUTH_HEADER}).json()
 
     # 5. Verify attestation using verifier functions (same as end-users would use)
-    report_result = check_report_data(attestation_json, nonce)
+    # First verify the TDX quote with Phala's verification API (real HTTP call)
+    intel_result = check_tdx_quote(attestation_json)
+    assert intel_result.get("quote", {}).get("verified"), "Intel TDX quote verification failed"
+
+    # Verify report_data binds signing address and nonce
+    report_result = check_report_data(attestation_json, nonce, intel_result)
     assert all(report_result.values()), f"Report data verification failed: {report_result}"
 
+    # Verify GPU attestation
     with patch("verifiers.attestation_verifier.fetch_nvidia_verification", return_value=nras_response):
         gpu_result = check_gpu(attestation_json, nonce)
         assert gpu_result["nonce_matches"] and gpu_result["verdict"], f"GPU verification failed: {gpu_result}"

@@ -34,12 +34,13 @@ def base64url_decode_jwt_payload(jwt_token):
     return base64.urlsafe_b64decode(padded).decode()
 
 
-def check_report_data(attestation, request_nonce):
+def check_report_data(attestation, request_nonce, intel_result):
     """Verify that TDX report data binds the signing address and request nonce.
 
     Returns dict with verification results.
     """
-    report_data = bytes.fromhex(attestation["report_data"])
+    report_data_hex = intel_result["quote"]["body"]["reportdata"]
+    report_data = bytes.fromhex(report_data_hex.removeprefix("0x"))
     signing_address = attestation["signing_address"]
     signing_algo = attestation.get("signing_algo", "").lower()
 
@@ -100,7 +101,7 @@ def check_gpu(attestation, request_nonce):
 def check_tdx_quote(attestation):
     """Verify Intel TDX quote via Phala's verification service.
 
-    Returns dict with verification results.
+    Returns the full intel_result including decoded quote data.
     """
     intel_result = requests.post(PHALA_TDX_VERIFIER_API, json={"hex": attestation["intel_quote"]}, timeout=30).json()
     payload = intel_result.get("quote") or {}
@@ -110,10 +111,7 @@ def check_tdx_quote(attestation):
     if message:
         print("Intel TDX verifier message:", message)
 
-    return {
-        "verified": verified,
-        "message": message,
-    }
+    return intel_result
 
 
 def extract_sigstore_links(compose):
@@ -162,8 +160,8 @@ def show_sigstore_provenance(attestation):
             print(f"  ✗ {link} (HTTP {status})")
 
 
-def show_compose(attestation):
-    """Display the Docker compose manifest from the attestation."""
+def show_compose(attestation, intel_result):
+    """Display the Docker compose manifest and verify against mr_config from verified quote."""
     compose = attestation["info"]["tcb_info"].get("app_compose")
     if not compose:
         return
@@ -174,12 +172,10 @@ def show_compose(attestation):
     compose_hash = sha256(compose.encode()).hexdigest()
     print("Compose sha256:", compose_hash)
 
-    mr_config = attestation["info"].get("mr_config")
-    if mr_config:
-        print("mr_config:", mr_config)
-        # mr_config should be 0x01 + sha256_hash
-        expected_mr_config = "0x01" + compose_hash
-        print("mr_config matches compose hash:", mr_config.lower() == expected_mr_config.lower())
+    mr_config = intel_result["quote"]["body"]["mrconfig"]
+    print("mr_config (from verified quote):", mr_config)
+    expected_mr_config = "0x01" + compose_hash
+    print("mr_config matches compose hash:", mr_config.lower() == expected_mr_config.lower())
 
 
 def main() -> None:
@@ -196,16 +192,16 @@ def main() -> None:
     print("\nSigning address:", attestation["signing_address"])
     print("Request nonce:", request_nonce)
 
+    print("\n🔐 Intel TDX quote")
+    intel_result = check_tdx_quote(attestation)
+
     print("\n🔐 TDX report data")
-    check_report_data(attestation, request_nonce)
+    check_report_data(attestation, request_nonce, intel_result)
 
     print("\n🔐 GPU attestation")
     check_gpu(attestation, request_nonce)
 
-    print("\n🔐 Intel TDX quote")
-    check_tdx_quote(attestation)
-
-    show_compose(attestation)
+    show_compose(attestation, intel_result)
     show_sigstore_provenance(attestation)
 
 
