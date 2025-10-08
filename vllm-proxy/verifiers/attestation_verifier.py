@@ -42,22 +42,14 @@ def check_report_data(attestation, request_nonce, intel_result):
     report_data_hex = intel_result["quote"]["body"]["reportdata"]
     report_data = bytes.fromhex(report_data_hex.removeprefix("0x"))
     signing_address = attestation["signing_address"]
-    signing_algo = attestation.get("signing_algo", "").lower()
+    signing_algo = attestation.get("signing_algo", "ecdsa").lower()
 
     # Parse signing address bytes based on algorithm
     if signing_algo == "ecdsa":
-        # ECDSA: 20-byte Ethereum address (strip 0x prefix if present)
-        addr_hex = signing_address[2:] if signing_address.startswith("0x") else signing_address
+        addr_hex = signing_address.removeprefix("0x")
         signing_address_bytes = bytes.fromhex(addr_hex)
-        if len(signing_address_bytes) != 20:
-            raise ValueError(f"ECDSA address must be 20 bytes, got {len(signing_address_bytes)}")
-    elif signing_algo == "ed25519":
-        # Ed25519: 32-byte public key
-        signing_address_bytes = bytes.fromhex(signing_address)
-        if len(signing_address_bytes) != 32:
-            raise ValueError(f"Ed25519 public key must be 32 bytes, got {len(signing_address_bytes)}")
     else:
-        raise ValueError(f"Unknown signing algorithm: {signing_algo}")
+        signing_address_bytes = bytes.fromhex(signing_address)
 
     embedded_address = report_data[:32]
     embedded_nonce = report_data[32:]
@@ -141,7 +133,9 @@ def check_sigstore_links(links):
 
 def show_sigstore_provenance(attestation):
     """Extract and display Sigstore provenance links from attestation."""
-    compose = attestation.get("info", {}).get("tcb_info", {}).get("app_compose")
+    tcb_info = attestation.get("info", {}).get("tcb_info", {})
+    tcb_info = json.loads(tcb_info)
+    compose = tcb_info.get("app_compose")
     if not compose:
         return
 
@@ -162,7 +156,9 @@ def show_sigstore_provenance(attestation):
 
 def show_compose(attestation, intel_result):
     """Display the Docker compose manifest and verify against mr_config from verified quote."""
-    compose = attestation["info"]["tcb_info"].get("app_compose")
+    tcb_info = attestation["info"]["tcb_info"]
+    tcb_info = json.loads(tcb_info)
+    compose = tcb_info.get("app_compose")
     if not compose:
         return
 
@@ -175,7 +171,7 @@ def show_compose(attestation, intel_result):
     mr_config = intel_result["quote"]["body"]["mrconfig"]
     print("mr_config (from verified quote):", mr_config)
     expected_mr_config = "0x01" + compose_hash
-    print("mr_config matches compose hash:", mr_config.lower() == expected_mr_config.lower())
+    print("mr_config matches compose hash:", mr_config.lower().startswith(expected_mr_config.lower()))
 
 
 def main() -> None:

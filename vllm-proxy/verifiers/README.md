@@ -52,8 +52,10 @@ Fetches chat completions (streaming and non-streaming), verifies ECDSA signature
 2. Fetches signature from `/v1/signature/{chat_id}` endpoint
 3. Verifies request hash and response hash match the signed hashes
 4. Recovers ECDSA signing address from signature
-5. Fetches fresh attestation for the recovered signing address
+5. Fetches fresh attestation with user-supplied nonce for the recovered signing address
 6. Validates attestation using the same checks as attestation verifier
+
+**Note**: The verifier supplies a fresh nonce when fetching attestation (step 5), which ensures attestation freshness but means the nonce/report_data won't match the original signing context. This is expected behavior - the verifier proves the signing key is bound to valid hardware, not that a specific attestation was used for signing.
 
 ### Setup
 
@@ -104,3 +106,39 @@ Checking Sigstore accessibility for container images...
 ```
 
 If a link returns ✗, the provenance data may not be available in Sigstore (either the image wasn't signed or the digest is incorrect).
+
+## Multi-Server Load Balancer Setup
+
+In production deployments with multiple backend servers behind a load balancer:
+
+### Server Behavior
+- Each server has its own unique signing key/address
+- Attestation requests with `signing_address` parameter return 404 if the address doesn't match
+- Response includes `all_attestations: [attestation]` (single-element array with this server's attestation)
+
+### Load Balancer Requirements
+When `/v1/attestation/report?signing_address={addr}&nonce={nonce}`:
+1. **Broadcast** the request to all backend servers
+2. Collect non-404 responses from servers matching the signing_address
+3. Merge `all_attestations` arrays from all responses
+4. Return combined response with all servers' attestations
+
+### Verifier Flow
+1. Get signature → extract `signing_address`
+2. Request attestation with `signing_address` parameter
+3. LB broadcasts → collect attestations from all servers
+4. Verifier finds matching attestation by comparing `signing_address` in `all_attestations`
+
+### Example Response (Multi-Server)
+```json
+{
+  "signing_address": "0xServer1...",
+  "intel_quote": "...",
+  "all_attestations": [
+    {"signing_address": "0xServer1...", "intel_quote": "...", ...},
+    {"signing_address": "0xServer2...", "intel_quote": "...", ...}
+  ]
+}
+```
+
+The verifier filters `all_attestations` to find the entry matching the signature's `signing_address`.
