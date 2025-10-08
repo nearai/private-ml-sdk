@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Minimal guide for checking signed chat responses."""
 
+import argparse
 import json
 import os
 import secrets
@@ -10,7 +11,7 @@ import requests
 from eth_account import Account
 from eth_account.messages import encode_defunct
 
-from verifiers.attestation_verifier import (
+from attestation_verifier import (
     check_report_data,
     check_gpu,
     check_tdx_quote,
@@ -18,7 +19,6 @@ from verifiers.attestation_verifier import (
 )
 
 API_KEY = os.environ.get("API_KEY", "")
-MODEL = "phala/deepseek-chat-v3-0324"
 BASE_URL = "https://api.redpill.ai"
 
 
@@ -27,9 +27,9 @@ def sha256_text(text):
     return sha256(text.encode()).hexdigest()
 
 
-def fetch_signature(chat_id):
+def fetch_signature(chat_id, model):
     """Fetch signature for a chat completion."""
-    url = f"{BASE_URL}/v1/signature/{chat_id}?model={MODEL}"
+    url = f"{BASE_URL}/v1/signature/{chat_id}?model={model}"
     headers = {"Authorization": f"Bearer {API_KEY}"}
     return requests.get(url, headers=headers, timeout=30).json()
 
@@ -40,10 +40,10 @@ def recover_signer(text, signature):
     return Account.recover_message(message, signature=signature)
 
 
-def fetch_attestation_for(signing_address):
+def fetch_attestation_for(signing_address, model):
     """Fetch attestation for a specific signing address."""
     nonce = secrets.token_hex(32)
-    url = f"{BASE_URL}/v1/attestation/report?model={MODEL}&nonce={nonce}&signing_address={signing_address}"
+    url = f"{BASE_URL}/v1/attestation/report?model={model}&nonce={nonce}&signing_address={signing_address}"
     report = requests.get(url, headers={"Authorization": f"Bearer {API_KEY}"}, timeout=30).json()
 
     # Handle both single attestation and multi-node response formats
@@ -68,13 +68,13 @@ def check_attestation(signing_address, attestation, nonce):
     show_sigstore_provenance(attestation)
 
 
-def verify_chat(chat_id, request_body, response_text, label):
+def verify_chat(chat_id, request_body, response_text, label, model):
     """Verify a chat completion signature and attestation."""
     request_hash = sha256_text(request_body)
     response_hash = sha256_text(response_text)
 
     print(f"\n--- {label} ---")
-    signature_payload = fetch_signature(chat_id)
+    signature_payload = fetch_signature(chat_id, model)
     print(json.dumps(signature_payload, indent=2))
 
     hashed_text = signature_payload["text"]
@@ -87,15 +87,15 @@ def verify_chat(chat_id, request_body, response_text, label):
     recovered = recover_signer(hashed_text, signature)
     print("Signature valid:", recovered.lower() == signing_address.lower())
 
-    attestation, nonce = fetch_attestation_for(signing_address)
+    attestation, nonce = fetch_attestation_for(signing_address, model)
     print("\nAttestation signer:", attestation["signing_address"])
     print("Attestation nonce:", nonce)
     check_attestation(signing_address, attestation, nonce)
 
 
-def streaming_example():
+def streaming_example(model):
     body = {
-        "model": MODEL,
+        "model": model,
         "messages": [{"role": "user", "content": "Hello, how are you?"}],
         "stream": True,
         "max_tokens": 1,
@@ -117,12 +117,12 @@ def streaming_example():
         if line.startswith("data: {") and chat_id is None:
             chat_id = json.loads(line[6:])['id']
 
-    verify_chat(chat_id, body_json, response_text, "Streaming example")
+    verify_chat(chat_id, body_json, response_text, "Streaming example", model)
 
 
-def non_streaming_example():
+def non_streaming_example(model):
     body = {
-        "model": MODEL,
+        "model": model,
         "messages": [{"role": "user", "content": "Hello, how are you?"}],
         "stream": False,
         "max_tokens": 1,
@@ -137,17 +137,21 @@ def non_streaming_example():
 
     payload = response.json()
     chat_id = payload["id"]
-    verify_chat(chat_id, body_json, response.text, "Non-streaming example")
+    verify_chat(chat_id, body_json, response.text, "Non-streaming example", model)
 
 
 def main():
     """Run example verification of streaming and non-streaming chat completions."""
+    parser = argparse.ArgumentParser(description="Verify Signed Chat Responses")
+    parser.add_argument("--model", default="phala/deepseek-chat-v3-0324")
+    args = parser.parse_args()
+
     if not API_KEY:
         print("Error: API_KEY environment variable is required")
         print("Set it with: export API_KEY=your-api-key")
         return
-    streaming_example()
-    non_streaming_example()
+    streaming_example(args.model)
+    non_streaming_example(args.model)
 
 
 if __name__ == "__main__":
