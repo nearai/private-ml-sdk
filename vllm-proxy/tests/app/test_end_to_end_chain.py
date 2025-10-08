@@ -20,6 +20,8 @@ from verifiers.attestation_verifier import check_report_data, check_gpu, check_t
 
 @pytest.fixture(scope="module")
 def client():
+    if not os.path.exists('/var/run/dstack.sock'):
+        pytest.skip("Not in a real TEE environment.")
     return TestClient(app)
 
 @pytest.mark.parametrize("nras_response", [NRAS_SAMPLE_RESPONSE, NRAS_SAMPLE_PPCIE_RESPONSE])
