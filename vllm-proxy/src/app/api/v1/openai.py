@@ -216,33 +216,25 @@ async def attestation_report(
     request: Request,
     signing_algo: str | None = None,
     nonce: str | None = Query(None),
+    signing_address: str | None = Query(None),
 ):
     signing_algo = ECDSA if signing_algo is None else signing_algo
     if signing_algo not in [ECDSA, ED25519]:
         return invalid_signing_algo()
 
     context = ecdsa_context if signing_algo == ECDSA else ed25519_context
+
+    # If signing_address is specified and doesn't match this server's address, return 404
+    if signing_address and context.signing_address.lower() != signing_address.lower():
+        raise HTTPException(status_code=404, detail="Signing address not found on this server")
     try:
         attestation = generate_attestation(context, nonce)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
-    existing = cache.get_attestation(context.signing_address) or {}
-    existing[signing_algo] = attestation
-    cache.set_attestation(context.signing_address, existing)
-
     resp = dict(attestation)
-    try:
-        attestations = cache.get_attestations() or []
-        collected = []
-        for item in attestations:
-            if isinstance(item, dict) and signing_algo in item:
-                collected.append(item[signing_algo])
-        resp["all_attestations"] = collected
-        return resp
-    except Exception as e:
-        log.error(f"Error parsing the attestations in cache: {e}")
-        return unexpect_error("Error parsing the attestations in cache", e)
+    resp["all_attestations"] = [attestation]
+    return resp
 
 
 # VLLM Chat completions

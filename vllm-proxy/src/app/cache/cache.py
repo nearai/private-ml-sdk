@@ -13,7 +13,6 @@ if not MODEL_NAME:
     raise ValueError("MODEL_NAME is not set")
 
 CHAT_PREFIX = "chat"
-ATTESTATION_PREFIX = "attestation"
 
 
 class ChatCache:
@@ -74,64 +73,6 @@ class ChatCache:
         key = self._make_key(CHAT_PREFIX, chat_id)
         return self._read_string(key)
 
-    # Attestation operations
-
-    def set_attestation(self, address: str, payload: dict) -> None:
-        """Store attestation (auto-serializes to JSON)."""
-        key = self._make_key(ATTESTATION_PREFIX, address)
-        try:
-            value = json.dumps(payload)
-            self._write_string(key, value)
-        except (TypeError, ValueError) as exc:
-            log.error("Failed to serialize attestation for %s: %s", address, exc)
-
-    def get_attestation(self, address: str) -> Optional[dict]:
-        """Retrieve attestation (auto-deserializes from JSON)."""
-        key = self._make_key(ATTESTATION_PREFIX, address)
-        raw = self._read_string(key)
-        if not raw:
-            return None
-
-        return self._parse_json(raw, f"attestation {address}")
-
-    def get_attestations(self) -> list[dict]:
-        """
-        Retrieve all attestations for this model (Redis-only feature).
-
-        Returns empty list if Redis not configured or fails.
-        """
-        if not self._redis:
-            return []
-
-        prefix = f"{MODEL_NAME}:{ATTESTATION_PREFIX}"
-        try:
-            values = self._redis.get_all_values(prefix)
-            return self._parse_json_list(values)
-        except Exception as exc:
-            log.warning("Failed to retrieve attestations from Redis: %s", exc)
-            return []
-
-    # JSON helpers
-
-    def _parse_json(self, raw: str, context: str) -> Optional[dict]:
-        """Parse JSON string, log error on failure."""
-        try:
-            return json.loads(raw)
-        except json.JSONDecodeError:
-            log.error("Invalid JSON for %s", context)
-            return None
-
-    def _parse_json_list(self, raw_values: list[str]) -> list[dict]:
-        """Parse list of JSON strings, skip invalid entries."""
-        result = []
-        for raw in raw_values:
-            try:
-                item = json.loads(raw)
-                if isinstance(item, dict):
-                    result.append(item)
-            except json.JSONDecodeError:
-                log.warning("Skipping invalid JSON in batch parse")
-        return result
 
 
 cache = ChatCache()

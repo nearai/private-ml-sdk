@@ -43,7 +43,7 @@ def recover_signer(text, signature):
 def fetch_attestation_for(signing_address):
     """Fetch attestation for a specific signing address."""
     nonce = secrets.token_hex(32)
-    url = f"{BASE_URL}/v1/attestation/report?model={MODEL}&nonce={nonce}"
+    url = f"{BASE_URL}/v1/attestation/report?model={MODEL}&nonce={nonce}&signing_address={signing_address}"
     report = requests.get(url, headers={"Authorization": f"Bearer {API_KEY}"}, timeout=30).json()
 
     # Handle both single attestation and multi-node response formats
