@@ -19,6 +19,7 @@ Generates a fresh nonce, requests a new attestation, and verifies:
 ### Usage
 
 ```bash
+cd verifiers
 python3 attestation_verifier.py [--model MODEL_NAME]
 ```
 
@@ -71,12 +72,15 @@ Or create a `.env` file:
 API_KEY=your-api-key-here
 ```
 
-Then load it:
+Then run from the verifiers directory:
 
 ```bash
+cd verifiers
 source .env
-python3 signature_verifier.py
+python3 signature_verifier.py [--model MODEL_NAME]
 ```
+
+Default model: `phala/deepseek-chat-v3-0324`
 
 ### What It Verifies
 

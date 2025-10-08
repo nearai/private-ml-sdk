@@ -134,7 +134,8 @@ def check_sigstore_links(links):
 def show_sigstore_provenance(attestation):
     """Extract and display Sigstore provenance links from attestation."""
     tcb_info = attestation.get("info", {}).get("tcb_info", {})
-    tcb_info = json.loads(tcb_info)
+    if isinstance(tcb_info, str):
+        tcb_info = json.loads(tcb_info)
     compose = tcb_info.get("app_compose")
     if not compose:
         return
@@ -157,15 +158,17 @@ def show_sigstore_provenance(attestation):
 def show_compose(attestation, intel_result):
     """Display the Docker compose manifest and verify against mr_config from verified quote."""
     tcb_info = attestation["info"]["tcb_info"]
-    tcb_info = json.loads(tcb_info)
-    compose = tcb_info.get("app_compose")
-    if not compose:
+    if isinstance(tcb_info, str):
+        tcb_info = json.loads(tcb_info)
+    app_compose = tcb_info.get("app_compose")
+    if not app_compose:
         return
-
+    docker_compose = json.loads(app_compose)["docker_compose_file"]
+        
     print("\nDocker compose manifest attested by the enclave:")
-    print(compose)
+    print(docker_compose)
 
-    compose_hash = sha256(compose.encode()).hexdigest()
+    compose_hash = sha256(app_compose.encode()).hexdigest()
     print("Compose sha256:", compose_hash)
 
     mr_config = intel_result["quote"]["body"]["mrconfig"]
