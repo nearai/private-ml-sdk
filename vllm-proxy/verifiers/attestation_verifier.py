@@ -115,7 +115,15 @@ def extract_sigstore_links(compose):
     pattern = r'@sha256:([0-9a-f]{64})'
     digests = re.findall(pattern, compose)
 
-    return [f"{SIGSTORE_SEARCH_BASE}sha256:{digest}" for digest in digests]
+    # Deduplicate digests while preserving order
+    seen = set()
+    unique_digests = []
+    for digest in digests:
+        if digest not in seen:
+            seen.add(digest)
+            unique_digests.append(digest)
+
+    return [f"{SIGSTORE_SEARCH_BASE}sha256:{digest}" for digest in unique_digests]
 
 
 def check_sigstore_links(links):
