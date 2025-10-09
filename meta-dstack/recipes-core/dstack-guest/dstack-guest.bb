@@ -72,5 +72,9 @@ do_install() {
         install -m 0644 ${S}/basefiles/app-compose.service ${D}${systemd_system_unitdir}
         install -m 0644 ${S}/basefiles/wg-checker.service ${D}${systemd_system_unitdir}
         install -m 0644 ${S}/basefiles/llmnr.conf ${D}${sysconfdir}/systemd/resolved.conf.d
+        install -d ${D}${sysconfdir}/systemd/system/docker.service.d
+        install -m 0644 ${S}/basefiles/docker.service.d/dstack-guest-agent.conf ${D}${sysconfdir}/systemd/system/docker.service.d/
     fi
 }
+
+FILES:${PN} += "${sysconfdir}/systemd/system/docker.service.d/dstack-guest-agent.conf"
