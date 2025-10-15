@@ -17,7 +17,7 @@ services:
     container_name: vllm-proxy
     privileged: true
     volumes:
-      - /var/run/tappd.sock:/var/run/tappd.sock
+      - /var/run/dstack.sock:/var/run/dstack.sock
     ports:
       - "8000:8000"
 
