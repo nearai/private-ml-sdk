@@ -29,6 +29,9 @@ IMAGE_INSTALL = "\
     fuse3 \
     fuse3-utils \
     pigz \
+    xfsprogs \
+    e2fsprogs \
+    e2fsprogs-resize2fs \
 "
 
 IMAGE_NAME_SUFFIX ?= ""
