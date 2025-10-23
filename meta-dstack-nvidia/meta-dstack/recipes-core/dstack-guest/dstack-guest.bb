@@ -18,7 +18,7 @@ DEPENDS += "rsync-native"
 # Ensure rsync-native is built before unpack runs
 do_unpack[depends] += "rsync-native:do_populate_sysroot"
 
-DSTACK_SERVICES = "dstack-guest-agent.service dstack-prepare.service app-compose.service"
+DSTACK_SERVICES = "dstack-guest-agent.service dstack-prepare.service app-compose.service wg-checker.service"
 SYSTEMD_PACKAGES = "${@bb.utils.contains('DISTRO_FEATURES','systemd','${PN}','',d)}"
 SYSTEMD_SERVICE:${PN} = "${@bb.utils.contains('DISTRO_FEATURES','systemd','${DSTACK_SERVICES}','',d)}"
 SYSTEMD_AUTO_ENABLE:${PN} = "enable"
@@ -55,6 +55,7 @@ do_install() {
     install -m 0755 ${CARGO_BINDIR}/dstack-util ${D}${bindir}
     install -m 0755 ${CARGO_BINDIR}/dstack-guest-agent ${D}${bindir}
     install -m 0755 ${S}/basefiles/dstack-prepare.sh ${D}${bindir}
+    install -m 0755 ${S}/basefiles/wg-checker.sh ${D}${bindir}
     install -m 0755 ${S}/basefiles/app-compose.sh ${D}${bindir}
     install -m 0755 ${S}/docker-daemon.json ${D}${sysconfdir}/docker/daemon.json
     install -m 0644 ${S}/basefiles/journald.conf ${D}${sysconfdir}/systemd/journald.conf.d/dstack.conf
@@ -69,6 +70,11 @@ do_install() {
         install -m 0644 ${S}/basefiles/dstack-guest-agent.service ${D}${systemd_system_unitdir}
         install -m 0644 ${S}/basefiles/dstack-prepare.service ${D}${systemd_system_unitdir}
         install -m 0644 ${S}/basefiles/app-compose.service ${D}${systemd_system_unitdir}
+        install -m 0644 ${S}/basefiles/wg-checker.service ${D}${systemd_system_unitdir}
         install -m 0644 ${S}/basefiles/llmnr.conf ${D}${sysconfdir}/systemd/resolved.conf.d
+        install -d ${D}${sysconfdir}/systemd/system/docker.service.d
+        install -m 0644 ${S}/basefiles/docker.service.d/dstack-guest-agent.conf ${D}${sysconfdir}/systemd/system/docker.service.d/
     fi
 }
+
+FILES:${PN} += "${sysconfdir}/systemd/system/docker.service.d/dstack-guest-agent.conf"

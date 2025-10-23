@@ -13,6 +13,7 @@ KERNEL_FEATURES:append = " features/cgroups/cgroups.scc \
                           features/overlayfs/overlayfs.scc \
                           features/netfilter/netfilter.scc \
                           features/fuse/fuse.scc \
+                          features/xfs/xfs.scc \
                           cfg/fs/squashfs.scc \
                           dstack-docker.scc \
                           dstack.scc"
