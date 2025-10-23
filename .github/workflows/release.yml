@@ -53,13 +53,13 @@ jobs:
           context: vllm-proxy
           file: vllm-proxy/docker/Dockerfile
           push: true
-          tags: ${{ vars.DOCKERHUB_USERNAME }}/vllm-proxy:${{ github.ref_name }}
+          tags: ${{ vars.DOCKERHUB_ORG }}/vllm-proxy:${{ github.ref_name }}
           platforms: linux/amd64
 
       - name: Generate artifact attestation
         uses: actions/attest-build-provenance@v1
         with:
-          subject-name: "docker.io/${{ vars.DOCKERHUB_USERNAME }}/vllm-proxy"
+          subject-name: "docker.io/${{ vars.DOCKERHUB_ORG }}/vllm-proxy"
           subject-digest: ${{ steps.build-and-push.outputs.digest }}
           push-to-registry: true
         env:
@@ -74,4 +74,4 @@ jobs:
 
             | Image | Digest | Verification |
             |---|---|---|
-            | `docker.io/${{ vars.DOCKERHUB_USERNAME }}/vllm-proxy:${{ github.ref_name }}` | `${{ steps.build-and-push.outputs.digest }}` | [Verify on Sigstore](https://search.sigstore.dev/?hash=${{ steps.build-and-push.outputs.digest }})
+            | `docker.io/${{ vars.DOCKERHUB_ORG }}/vllm-proxy:${{ github.ref_name }}` | `${{ steps.build-and-push.outputs.digest }}` | [Verify on Sigstore](https://search.sigstore.dev/?hash=${{ steps.build-and-push.outputs.digest }})
